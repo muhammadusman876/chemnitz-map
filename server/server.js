@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 
+import geojsonRoutes from './routes/cultRoutes.js';
 // Load environment variables
 dotenv.config();
 
@@ -25,6 +26,7 @@ app.use(cors({
 app.use(express.json());
 
 // Routes
+app.use('/api/admin', geojsonRoutes);
 app.use('/api/auth', authRoutes);
 
 app.get('/', (req, res) => {

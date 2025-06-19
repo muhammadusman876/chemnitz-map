@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import Map from './Map';
+import CulturalSitesList from './CulturalSitesList';
 
 const MapContainer = () => {
-  const [geoJsonData, setGeoJsonData] = useState(null);
+  const [geoJsonData, setGeoJsonData] = useState<any>(null);
+  const [selectedCoords, setSelectedCoords] = useState<[number, number] | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>(''); // <-- NEW
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Replace this path with your actual GeoJSON file location
-    fetch('/data/Chemnitz.geojson')
+    setLoading(true);
+    const url = selectedCategory
+      ? `http://localhost:5000/api/admin?category=${encodeURIComponent(selectedCategory)}`
+      : 'http://localhost:5000/api/admin/';
+    fetch(url)
       .then(response => {
         if (!response.ok) {
           throw new Error('Failed to load GeoJSON data');
@@ -16,8 +22,48 @@ const MapContainer = () => {
         return response.json();
       })
       .then(data => {
-        console.log("GeoJSON data loaded:", data);
-        setGeoJsonData(data);
+        // Convert array of sites to GeoJSON FeatureCollection
+        const features = data
+          .filter(
+            (site: any) =>
+              site.coordinates &&
+              typeof site.coordinates.lng === 'number' &&
+              typeof site.coordinates.lat === 'number'
+          )
+          .map((site: any) => ({
+            type: "Feature",
+            geometry: {
+              type: "Point",
+              coordinates: [site.coordinates.lng, site.coordinates.lat]
+            },
+            properties: {
+              _id: site._id,
+              name: site.name,
+              category: site.category,
+              description: site.description,
+              website: site.website,
+              address: site.address,
+              operator: site.operator,
+              opening_hours: site.opening_hours,
+              wheelchair: site.wheelchair,
+              fee: site.fee,
+              cuisine: site.cuisine,
+              phone: site.phone,
+              artist_name: site.artist_name,
+              artwork_type: site.artwork_type,
+              material: site.material,
+              start_date: site.start_date,
+              museum: site.museum,
+              tourism: site.tourism,
+              amenity: site.amenity,
+              historic: site.historic
+            },
+            id: site._id
+          }));
+        setGeoJsonData({
+          type: "FeatureCollection",
+          features
+        });
         setLoading(false);
       })
       .catch(error => {
@@ -25,15 +71,20 @@ const MapContainer = () => {
         setError(error.message);
         setLoading(false);
       });
-  }, []);
+  }, [selectedCategory]); // <-- refetch when category changes
 
   if (loading) return <div>Loading map data...</div>;
   if (error) return <div>Error loading map: {error}</div>;
 
   return (
     <div className="map-container">
-      <h2>Chemnitz Railway Museum Map</h2>
-      <Map geoJsonData={geoJsonData} />
+      <h2>Chemnitz Cultural Sites Map</h2>
+      <CulturalSitesList
+        onSiteClick={setSelectedCoords}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+      />
+      <Map geoJsonData={geoJsonData} selectedCoords={selectedCoords} />
     </div>
   );
 };

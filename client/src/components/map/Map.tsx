@@ -1,163 +1,173 @@
 import React, { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
 
-// Fix Leaflet icon issue in React
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
-let DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
+
+// Default marker icon
+const DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
 });
 
-L.Marker.prototype.options.icon = DefaultIcon;
+const CATEGORY_COLORS: Record<string, string> = {
+    museum: '#2563eb',      // blue
+    restaurant: '#16a34a',  // green
+    artwork: '#f59e42',     // orange
+    theatre: '#a21caf',     // purple
+    hotel: '#e11d48',       // red
+    // ...add more as needed
+};
 
-const Map = ({ geoJsonData }) => {
-    const chemnitzCoordinates: [number, number] = [50.8621274, 12.9677156];
-    const mapRef = useRef(null);
-    const clusterLayerRef = useRef(null);
+function getCategoryIcon(category: string) {
+    const color = CATEGORY_COLORS[category] || '#64748b'; // default gray
+    return L.divIcon({
+        className: '',
+        html: `<svg width="32" height="41" viewBox="0 0 32 41" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="16" cy="16" rx="14" ry="14" fill="${color}" stroke="#222" stroke-width="2"/>
+      <rect x="14" y="30" width="4" height="8" rx="2" fill="${color}" stroke="#222" stroke-width="2"/>
+    </svg>`,
+        iconSize: [32, 41],
+        iconAnchor: [16, 41],
+        popupAnchor: [0, -41],
+    });
+}
 
-    useEffect(() => {
-        if (!geoJsonData || !mapRef.current) return;
+// Selected marker icon (red and bigger)
+const SelectedIcon = L.icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+  shadowUrl: iconShadow,
+  iconSize: [35, 51],
+  iconAnchor: [17, 51],
+});
 
-        // Clean up previous layers
-        if (clusterLayerRef.current) {
-            clusterLayerRef.current.clearLayers();
-            mapRef.current.removeLayer(clusterLayerRef.current);
+interface MapProps {
+  geoJsonData: any;
+  selectedCoords: [number, number] | null;
+}
+
+const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords }) => {
+  const chemnitzCoordinates: [number, number] = [50.8621274, 12.9677156];
+  const mapRef = useRef<L.Map | null>(null);
+  const clusterLayerRef = useRef<L.MarkerClusterGroup | null>(null);
+
+  // Helper to compare coordinates
+  const isSelected = (lat: number, lng: number) =>
+    selectedCoords &&
+    Math.abs(lat - selectedCoords[0]) < 1e-6 &&
+    Math.abs(lng - selectedCoords[1]) < 1e-6;
+
+  useEffect(() => {
+    // Initialize map only once
+    if (!mapRef.current) {
+      mapRef.current = L.map('map').setView(chemnitzCoordinates, 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(mapRef.current);
+    }
+
+    // Remove previous cluster layer if exists
+    if (clusterLayerRef.current) {
+      clusterLayerRef.current.clearLayers();
+      mapRef.current.removeLayer(clusterLayerRef.current);
+    }
+
+    // Create cluster group
+    const clusterGroup = L.markerClusterGroup({
+      showCoverageOnHover: false,
+      maxClusterRadius: 40,
+      spiderfyOnMaxZoom: true,
+    });
+
+    // Add GeoJSON features as markers to the cluster group
+    const geoJsonLayer = L.geoJSON(geoJsonData, {
+      pointToLayer: (feature, latlng) => {
+        const props = feature.properties;
+        const markerIcon = isSelected(latlng.lat, latlng.lng)
+          ? SelectedIcon
+          : getCategoryIcon(props.category);
+
+        let popupContent = `<div style="min-width:200px">`;
+        if (props.name) popupContent += `<h3 style="margin-bottom:4px">${props.name}</h3>`;
+        if (props.category) popupContent += `<p><strong>Category:</strong> ${props.category}</p>`;
+        if (props.description) popupContent += `<p>${props.description}</p>`;
+        if (props.operator) popupContent += `<p><strong>Operator:</strong> ${props.operator}</p>`;
+        if (props.opening_hours) popupContent += `<p><strong>Opening Hours:</strong> ${props.opening_hours}</p>`;
+        if (props.fee) popupContent += `<p><strong>Fee:</strong> ${props.fee}</p>`;
+        if (props.cuisine) popupContent += `<p><strong>Cuisine:</strong> ${props.cuisine}</p>`;
+        if (props.phone) popupContent += `<p><strong>Phone:</strong> ${props.phone}</p>`;
+        if (props.artist_name) popupContent += `<p><strong>Artist:</strong> ${props.artist_name}</p>`;
+        if (props.artwork_type) popupContent += `<p><strong>Artwork Type:</strong> ${props.artwork_type}</p>`;
+        if (props.material) popupContent += `<p><strong>Material:</strong> ${props.material}</p>`;
+        if (props.start_date) popupContent += `<p><strong>Year:</strong> ${props.start_date}</p>`;
+        if (props.wheelchair) popupContent += `<p><strong>Wheelchair:</strong> ${props.wheelchair}</p>`;
+        if (props.website) popupContent += `<p><a href="${props.website}" target="_blank" rel="noopener noreferrer">Website</a></p>`;
+
+        // Address block
+        if (
+          props.address &&
+          (props.address.street ||
+            props.address.housenumber ||
+            props.address.postcode ||
+            props.address.city ||
+            props.address.country)
+        ) {
+          const addressParts = [
+            props.address.street && props.address.housenumber
+              ? `${props.address.street} ${props.address.housenumber}`
+              : props.address.street,
+            props.address.postcode,
+            props.address.city,
+            props.address.country,
+          ].filter(Boolean);
+          popupContent += `<p><strong>Address:</strong> ${addressParts.join(', ')}</p>`;
         }
 
-        // Create a cluster group for markers with customized settings
-        clusterLayerRef.current = L.markerClusterGroup({
-            chunkedLoading: true,           // Load markers in chunks to prevent freezing
-            maxClusterRadius: 40,           // Maximum radius of a cluster
-            spiderfyOnMaxZoom: true,        // Spiderfy when clicking a cluster at max zoom
-            showCoverageOnHover: true,      // Show coverage polygon on hover
-            zoomToBoundsOnClick: true,      // Zoom to bounds of cluster on click
-            disableClusteringAtZoom: 18     // At high zoom levels, don't cluster points
+        popupContent += `</div>`;
+        return L.marker(latlng, { icon: markerIcon, riseOnHover: true }).bindPopup(popupContent);
+      },
+    });
+
+    clusterGroup.addLayer(geoJsonLayer);
+    clusterGroup.addTo(mapRef.current);
+    clusterLayerRef.current = clusterGroup;
+
+    // Fit bounds to show all markers
+    try {
+      const bounds = clusterGroup.getBounds();
+      if (bounds.isValid()) {
+        mapRef.current.fitBounds(bounds, {
+          padding: [50, 50],
+          maxZoom: 15,
         });
+      }
+    } catch {
+      mapRef.current.setView(chemnitzCoordinates, 13);
+    }
 
-        // Create GeoJSON layer with custom popup for each feature
-        const geoJsonLayer = L.geoJSON(geoJsonData, {
-            pointToLayer: (feature, latlng) => {
-                // Process only point features
-                if (feature.geometry.type === 'Point') {
-                    const props = feature.properties;
+    return () => {
+      if (mapRef.current && clusterLayerRef.current) {
+        clusterLayerRef.current.clearLayers();
+        mapRef.current.removeLayer(clusterLayerRef.current);
+      }
+    };
+  }, [geoJsonData, selectedCoords]);
 
-                    // Create marker
-                    const marker = L.marker(latlng);
+  // Pan/zoom to selected marker
+  useEffect(() => {
+    if (selectedCoords && mapRef.current) {
+      mapRef.current.setView(selectedCoords, 16, { animate: true });
+    }
+  }, [selectedCoords]);
 
-                    // Create informative popup content based on available properties
-                    let popupContent = `<div class="custom-popup">`;
-
-                    // Add name if available
-                    if (props.name) {
-                        popupContent += `<h3>${props.name}</h3>`;
-                    }
-
-                    // Add type information
-                    if (props.tourism) {
-                        popupContent += `<p><strong>Type:</strong> ${props.tourism}</p>`;
-                    } else if (props.amenity) {
-                        popupContent += `<p><strong>Type:</strong> ${props.amenity}</p>`;
-                    }
-
-                    // Add address information if available
-                    let address = [];
-                    if (props['addr:street'] && props['addr:housenumber']) {
-                        address.push(`${props['addr:street']} ${props['addr:housenumber']}`);
-                    }
-                    if (props['addr:postcode'] && props['addr:city']) {
-                        address.push(`${props['addr:postcode']} ${props['addr:city']}`);
-                    }
-                    if (address.length > 0) {
-                        popupContent += `<p><strong>Address:</strong> ${address.join(', ')}</p>`;
-                    }
-
-                    // Add opening hours if available
-                    if (props.opening_hours) {
-                        popupContent += `<p><strong>Opening Hours:</strong> ${props.opening_hours}</p>`;
-                    }
-
-                    // Add website link if available
-                    if (props.website) {
-                        popupContent += `<p><a href="${props.website}" target="_blank" rel="noopener noreferrer">Visit Website</a></p>`;
-                    } else if (props['website:menu']) {
-                        popupContent += `<p><a href="${props['website:menu']}" target="_blank" rel="noopener noreferrer">Visit Menu</a></p>`;
-                    }
-
-                    popupContent += `</div>`;
-
-                    // Bind the popup to the marker
-                    marker.bindPopup(popupContent);
-                    return marker;
-                }
-                return null;
-            },
-            // Handle non-point features (if any)
-            style: (feature) => {
-                return {
-                    color: '#3388ff',
-                    weight: 2,
-                    fillOpacity: 0.2
-                };
-            },
-            // Filter function to handle only Point features for clustering
-            filter: (feature) => {
-                return feature.geometry.type === 'Point';
-            }
-        });
-
-        // Add GeoJSON layer to the cluster group
-        clusterLayerRef.current.addLayer(geoJsonLayer);
-
-        // Add the cluster group to the map
-        mapRef.current.addLayer(clusterLayerRef.current);
-
-        // Fit bounds to show all markers
-        try {
-            const bounds = clusterLayerRef.current.getBounds();
-            if (bounds.isValid()) {
-                mapRef.current.fitBounds(bounds, {
-                    padding: [50, 50],
-                    maxZoom: 15  // Don't zoom in too much
-                });
-            }
-        } catch (e) {
-            console.warn("Could not fit bounds:", e);
-            // Fall back to default center and zoom
-            mapRef.current.setView(chemnitzCoordinates, 13);
-        }
-
-        // Cleanup function
-        return () => {
-            if (clusterLayerRef.current && mapRef.current) {
-                mapRef.current.removeLayer(clusterLayerRef.current);
-            }
-        };
-    }, [geoJsonData]);
-
-    return (
-        <div className="map-container-wrapper">
-            <MapContainer
-                center={chemnitzCoordinates}
-                zoom={13}
-                style={{ height: "600px", width: "100%" }}
-                ref={mapRef}
-            >
-                <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-            </MapContainer>
-        </div>
-    );
+  return <div id="map" style={{ height: '600px', width: '100%' }} />;
 };
 
 export default Map;
