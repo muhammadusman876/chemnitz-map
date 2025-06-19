@@ -1,0 +1,128 @@
+import User from "../models/User.js";
+import bcrypt from "bcryptjs";
+import { generateToken } from "../middleware/authMiddleware.js";
+
+// Register a new user
+export const register = async (req, res) => {
+  const { username, email, password } = req.body;
+  try {
+    // Check if user already exists
+    let user = await User.findOne({ email });
+    if (user) return res.status(400).json({ message: "User already exists" });
+
+    // Check if username is taken
+    user = await User.findOne({ username });
+    if (user)
+      return res.status(400).json({ message: "Username is already taken" });
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create new user
+    user = new User({
+      username,
+      email,
+      password: hashedPassword,
+    });
+
+    await user.save();
+
+    // Generate JWT
+    const token = generateToken(user._id);
+
+    // Set token in HTTP-only cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // true in production
+      sameSite: "strict",
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
+    // Send user data (without password)
+    res.status(201).json({
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+      },
+      message: "Registration successful",
+    });
+  } catch (err) {
+    console.error("Registration error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Login user
+export const login = async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: "Invalid credentials" });
+
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch)
+      return res.status(400).json({ message: "Invalid credentials" });
+
+    // Generate JWT
+    const token = generateToken(user._id);
+
+    // Set token in HTTP-only cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
+    // Send user data
+    res.json({
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+      },
+      message: "Login successful",
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Logout user
+export const logout = (req, res) => {
+  // Clear the cookie
+  res.cookie("token", "", {
+    httpOnly: true,
+    expires: new Date(0), // Expire immediately
+  });
+
+  res.status(200).json({ message: "Logged out successfully" });
+};
+
+// Get current user
+export const getCurrentUser = async (req, res) => {
+  try {
+    // req.user.id is set by the authMiddleware
+    const user = await User.findById(req.user.id).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+      },
+    });
+  } catch (err) {
+    console.error("Get current user error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};

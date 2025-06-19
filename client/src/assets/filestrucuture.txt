@@ -1,0 +1,35 @@
+src/
+│
+├── api/                        # Axios instances & API functions
+│   ├── axiosInstance.ts        # Configured axios instance (with interceptors)
+│   └── authApi.ts              # Auth-related API calls (login, register, etc.)
+│
+├── components/                 # Reusable UI components
+│   └── Auth/
+│       ├── LoginForm.tsx
+│       ├── RegisterForm.tsx
+│       └── ProtectedRoute.tsx
+│
+├── context/                    # React Contexts
+│   └── AuthContext.tsx         # Auth context/provider
+│
+├── hooks/                      # Custom hooks
+│   └── useAuth.ts              # Hook for auth logic
+│
+├── pages/                      # Page components
+│   ├── Login.tsx
+│   ├── Register.tsx
+│   └── Dashboard.tsx
+│
+├── routes/                     # App routes
+│   └── AppRoutes.tsx
+│
+├── types/                      # TypeScript types/interfaces
+│   └── auth.d.ts
+│
+├── utils/                      # Utility functions
+│   └── token.ts                # JWT token helpers (get/set/remove)
+│
+├── App.tsx
+├── main.tsx
+└── index.css
