@@ -5,9 +5,10 @@ import CulturalSitesList from './CulturalSitesList';
 const MapContainer = () => {
   const [geoJsonData, setGeoJsonData] = useState<any>(null);
   const [selectedCoords, setSelectedCoords] = useState<[number, number] | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>(''); // <-- NEW
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -71,7 +72,7 @@ const MapContainer = () => {
         setError(error.message);
         setLoading(false);
       });
-  }, [selectedCategory]); // <-- refetch when category changes
+  }, [selectedCategory]);
 
   if (loading) return <div>Loading map data...</div>;
   if (error) return <div>Error loading map: {error}</div>;
@@ -84,7 +85,12 @@ const MapContainer = () => {
         selectedCategory={selectedCategory}
         setSelectedCategory={setSelectedCategory}
       />
-      <Map geoJsonData={geoJsonData} selectedCoords={selectedCoords} />
+      <Map
+        geoJsonData={geoJsonData}
+        selectedCoords={selectedCoords}
+        userLocation={userLocation}
+        setUserLocation={setUserLocation} // Pass setter for floating button in Map
+      />
     </div>
   );
 };

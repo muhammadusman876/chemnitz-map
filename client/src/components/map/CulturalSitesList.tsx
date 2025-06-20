@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import L from 'leaflet';
+import Select from 'react-select';
 
 interface CulturalSite {
     _id: string;
@@ -27,20 +28,6 @@ const CATEGORY_COLORS: Record<string, string> = {
     // ...add more as needed
 };
 
-function getCategoryIcon(category: string) {
-    const color = CATEGORY_COLORS[category] || '#64748b'; // default gray
-    return L.divIcon({
-        className: '',
-        html: `<svg width="32" height="41" viewBox="0 0 32 41" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="16" cy="16" rx="14" ry="14" fill="${color}" stroke="#222" stroke-width="2"/>
-      <rect x="14" y="30" width="4" height="8" rx="2" fill="${color}" stroke="#222" stroke-width="2"/>
-    </svg>`,
-        iconSize: [32, 41],
-        iconAnchor: [16, 41],
-        popupAnchor: [0, -41],
-    });
-}
-
 const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
     onSiteClick,
     selectedCategory,
@@ -48,7 +35,8 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
 }) => {
     const [sites, setSites] = useState<CulturalSite[]>([]);
     const [categories, setCategories] = useState<string[]>([]);
-    const [search, setSearch] = useState<string>(''); // <-- NEW
+    const [search, setSearch] = useState<string>('');
+    const [loading, setLoading] = useState<boolean>(false); // <-- NEW
 
     // Fetch all sites and categories on mount
     useEffect(() => {
@@ -61,6 +49,7 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
 
     // Fetch sites for selected category and search
     useEffect(() => {
+        setLoading(true); // <-- NEW
         const params = new URLSearchParams();
         if (selectedCategory) params.append('category', selectedCategory);
         if (search) params.append('q', search);
@@ -68,10 +57,32 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
         const url = `http://localhost:5000/api/admin/${params.toString() ? '?' + params.toString() : ''}`;
         fetch(url)
             .then(res => res.json())
-            .then(data => setSites(data));
+            .then(data => {
+                setSites(data);
+                setLoading(false); // <-- NEW
+            })
+            .catch(() => setLoading(false)); // <-- NEW
     }, [selectedCategory, search]);
 
     const shouldScroll = sites.length > 5;
+
+    // Prepare options for react-select
+    const categoryOptions = [
+        { value: '', label: 'All', color: '#334155' },
+        ...categories.map(cat => ({
+            value: cat,
+            label: cat.charAt(0).toUpperCase() + cat.slice(1),
+            color: CATEGORY_COLORS[cat] || '#334155'
+        }))
+    ];
+
+    // Simple spinner SVG
+    const Spinner = () => (
+        <svg className="animate-spin h-4 w-4 text-indigo-600 inline-block ml-2" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        </svg>
+    );
 
     return (
         <div className="max-w-3xl mx-auto p-6 bg-white rounded-xl shadow-lg mt-8">
@@ -87,21 +98,61 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                 />
             </div>
             <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
-                <label className="font-medium text-gray-700">
+                <label className="font-medium text-gray-700 w-full sm:w-auto">
                     Filter by category:
-                    <select
-                        value={selectedCategory}
-                        onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="ml-2 px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition"
-                    >
-                        <option value="">All</option>
-                        {categories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                    </select>
+                    <div className="mt-2 sm:mt-0 sm:ml-2 min-w-[180px]">
+                        <Select
+                            value={categoryOptions.find(opt => opt.value === selectedCategory)}
+                            onChange={opt => setSelectedCategory(opt?.value || '')}
+                            options={categoryOptions}
+                            isSearchable={false}
+                            styles={{
+                                option: (styles, { data, isFocused, isSelected }) => ({
+                                    ...styles,
+                                    backgroundColor: isSelected
+                                        ? data.color
+                                        : isFocused
+                                            ? '#e0e7ff'
+                                            : undefined,
+                                    color: isSelected
+                                        ? '#fff'
+                                        : '#334155', // Always dark text for unselected/unfocused
+                                    fontWeight: isSelected ? 700 : 400,
+                                }),
+                                singleValue: (styles, { data }) => ({
+                                    ...styles,
+                                    backgroundColor: data.color,
+                                    color: '#fff',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    fontWeight: 600,
+                                }),
+                                control: (styles) => ({
+                                    ...styles,
+                                    minHeight: '40px',
+                                }),
+                                menu: (styles) => ({
+                                    ...styles,
+                                    zIndex: 20,
+                                }),
+                            }}
+                        />
+                    </div>
                 </label>
-                <span className="text-sm text-gray-500">
-                    Showing {sites.length} {selectedCategory ? selectedCategory : 'sites'}
+                <span className="text-sm text-gray-500 flex items-center">
+                    {loading ? (
+                        <>
+                            Loading
+                            <Spinner />
+                        </>
+                    ) : (
+                        <>
+                            Showing {sites.length}{"  "}
+                            {selectedCategory === ""
+                                ? "sites"
+                                : categoryOptions.find(opt => opt.value === selectedCategory)?.label || "sites"}
+                        </>
+                    )}
                 </span>
             </div>
             {/* "All" category: flat, scrollable list */}

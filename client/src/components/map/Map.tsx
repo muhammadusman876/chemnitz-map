@@ -8,7 +8,6 @@ import 'leaflet.markercluster';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
-
 // Default marker icon
 const DefaultIcon = L.icon({
   iconUrl: icon,
@@ -18,26 +17,26 @@ const DefaultIcon = L.icon({
 });
 
 const CATEGORY_COLORS: Record<string, string> = {
-    museum: '#2563eb',      // blue
-    restaurant: '#16a34a',  // green
-    artwork: '#f59e42',     // orange
-    theatre: '#a21caf',     // purple
-    hotel: '#e11d48',       // red
-    // ...add more as needed
+  museum: '#2563eb',      // blue
+  restaurant: '#16a34a',  // green
+  artwork: '#f59e42',     // orange
+  theatre: '#a21caf',     // purple
+  hotel: '#e11d48',       // red
+  // ...add more as needed
 };
 
 function getCategoryIcon(category: string) {
-    const color = CATEGORY_COLORS[category] || '#64748b'; // default gray
-    return L.divIcon({
-        className: '',
-        html: `<svg width="32" height="41" viewBox="0 0 32 41" fill="none" xmlns="http://www.w3.org/2000/svg">
+  const color = CATEGORY_COLORS[category] || '#64748b'; // default gray
+  return L.divIcon({
+    className: '',
+    html: `<svg width="32" height="41" viewBox="0 0 32 41" fill="none" xmlns="http://www.w3.org/2000/svg">
       <ellipse cx="16" cy="16" rx="14" ry="14" fill="${color}" stroke="#222" stroke-width="2"/>
       <rect x="14" y="30" width="4" height="8" rx="2" fill="${color}" stroke="#222" stroke-width="2"/>
     </svg>`,
-        iconSize: [32, 41],
-        iconAnchor: [16, 41],
-        popupAnchor: [0, -41],
-    });
+    iconSize: [32, 41],
+    iconAnchor: [16, 41],
+    popupAnchor: [0, -41],
+  });
 }
 
 // Selected marker icon (red and bigger)
@@ -51,12 +50,15 @@ const SelectedIcon = L.icon({
 interface MapProps {
   geoJsonData: any;
   selectedCoords: [number, number] | null;
+  userLocation?: { lat: number; lng: number } | null;
+  setUserLocation?: (loc: { lat: number; lng: number }) => void;
 }
 
-const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords }) => {
+const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, setUserLocation }) => {
   const chemnitzCoordinates: [number, number] = [50.8621274, 12.9677156];
   const mapRef = useRef<L.Map | null>(null);
   const clusterLayerRef = useRef<L.MarkerClusterGroup | null>(null);
+  const userMarkerRef = useRef<L.Marker | null>(null);
 
   // Helper to compare coordinates
   const isSelected = (lat: number, lng: number) =>
@@ -167,7 +169,63 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords }) => {
     }
   }, [selectedCoords]);
 
-  return <div id="map" style={{ height: '600px', width: '100%' }} />;
+  // Add or update user location marker and pan/zoom
+  useEffect(() => {
+    if (userLocation && mapRef.current) {
+      // Remove previous user marker if exists
+      if (userMarkerRef.current) {
+        mapRef.current.removeLayer(userMarkerRef.current);
+      }
+      // Add new user marker
+      userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], {
+        icon: L.icon({
+          iconUrl: 'https://cdn-icons-png.flaticon.com/512/64/64113.png', // user icon
+          iconSize: [32, 32],
+          iconAnchor: [16, 32],
+        }),
+        title: 'Your Location',
+      }).addTo(mapRef.current).bindPopup('Your Location');
+      // Pan/zoom to user location
+      mapRef.current.setView([userLocation.lat, userLocation.lng], 16, { animate: true });
+    }
+  }, [userLocation]);
+
+  // Floating "locate me" button
+  const handleLocateMe = () => {
+    if (!navigator.geolocation || !mapRef.current || !setUserLocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const loc = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setUserLocation(loc);
+      },
+      () => {
+        alert('Unable to retrieve your location.');
+      },
+      { enableHighAccuracy: true }
+    );
+  };
+
+  return (
+    <div className="relative">
+      <div id="map" style={{ height: '600px', width: '100%' }} />
+      <div className="absolute bottom-6 right-6 z-[1000]">
+        <button
+          type="button"
+          onClick={handleLocateMe}
+          className="bg-white shadow-lg rounded-full p-3 hover:bg-indigo-100 transition"
+          title="Go to my location"
+        >
+          <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
 };
 
 export default Map;
