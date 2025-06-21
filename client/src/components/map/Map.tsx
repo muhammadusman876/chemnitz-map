@@ -1,12 +1,14 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
+import 'leaflet.markercluster/dist/leaflet.markercluster.js';
 
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+import userLocationIcon from '../../assets/shooting-target-color-icon(1).svg'; // adjust the path as needed
 
 // Default marker icon
 const DefaultIcon = L.icon({
@@ -59,6 +61,10 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
   const mapRef = useRef<L.Map | null>(null);
   const clusterLayerRef = useRef<L.MarkerClusterGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
+  const userCircleRef = useRef<L.Circle | null>(null);
+
+  // Store visited site IDs for the current user
+  const [visitedSites, setVisitedSites] = useState<string[]>([]);
 
   // Helper to compare coordinates
   const isSelected = (lat: number, lng: number) =>
@@ -66,6 +72,21 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
     Math.abs(lat - selectedCoords[0]) < 1e-6 &&
     Math.abs(lng - selectedCoords[1]) < 1e-6;
 
+  // Fetch visited sites for the current user on mount
+  useEffect(() => {
+    async function fetchVisited() {
+      try {
+        const res = await fetch('/api/users/me', { credentials: 'include' });
+        if (res.ok) {
+          const user = await res.json();
+          setVisitedSites(user.visitedSites || []);
+        }
+      } catch { }
+    }
+    fetchVisited();
+  }, []);
+
+  // Initialize and update map markers
   useEffect(() => {
     // Initialize map only once
     if (!mapRef.current) {
@@ -82,6 +103,7 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
     }
 
     // Create cluster group
+    // @ts-ignore
     const clusterGroup = L.markerClusterGroup({
       showCoverageOnHover: false,
       maxClusterRadius: 40,
@@ -92,9 +114,18 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
     const geoJsonLayer = L.geoJSON(geoJsonData, {
       pointToLayer: (feature, latlng) => {
         const props = feature.properties;
-        const markerIcon = isSelected(latlng.lat, latlng.lng)
-          ? SelectedIcon
-          : getCategoryIcon(props.category);
+        // Use a special icon if site is visited
+        const isVisited = visitedSites.includes(props._id);
+        const markerIcon = isVisited
+          ? L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/190/190411.png', // Example: green check icon
+            iconSize: [32, 41],
+            iconAnchor: [16, 41],
+            popupAnchor: [0, -41],
+          })
+          : isSelected(latlng.lat, latlng.lng)
+            ? SelectedIcon
+            : getCategoryIcon(props.category);
 
         let popupContent = `<div style="min-width:200px">`;
         if (props.name) popupContent += `<h3 style="margin-bottom:4px">${props.name}</h3>`;
@@ -132,6 +163,10 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
           popupContent += `<p><strong>Address:</strong> ${addressParts.join(', ')}</p>`;
         }
 
+        if (isVisited) {
+          popupContent += `<div style="color:green;font-weight:bold;margin-top:8px;">Visited</div>`;
+        }
+
         popupContent += `</div>`;
         return L.marker(latlng, { icon: markerIcon, riseOnHover: true }).bindPopup(popupContent);
       },
@@ -160,7 +195,7 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
         mapRef.current.removeLayer(clusterLayerRef.current);
       }
     };
-  }, [geoJsonData, selectedCoords]);
+  }, [geoJsonData, selectedCoords, visitedSites]);
 
   // Pan/zoom to selected marker
   useEffect(() => {
@@ -176,18 +211,76 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
       if (userMarkerRef.current) {
         mapRef.current.removeLayer(userMarkerRef.current);
       }
+      // Remove previous circle if exists
+      if (userCircleRef.current) {
+        mapRef.current.removeLayer(userCircleRef.current);
+      }
       // Add new user marker
       userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], {
         icon: L.icon({
-          iconUrl: 'https://cdn-icons-png.flaticon.com/512/64/64113.png', // user icon
+          iconUrl: userLocationIcon, // user icon
           iconSize: [32, 32],
           iconAnchor: [16, 32],
         }),
         title: 'Your Location',
       }).addTo(mapRef.current).bindPopup('Your Location');
+      // Add 50m radius circle
+      userCircleRef.current = L.circle([userLocation.lat, userLocation.lng], {
+        radius: 50,
+        color: '#2563eb',
+        fillColor: '#2563eb',
+        fillOpacity: 0.2,
+        weight: 2,
+      }).addTo(mapRef.current);
       // Pan/zoom to user location
       mapRef.current.setView([userLocation.lat, userLocation.lng], 16, { animate: true });
     }
+  }, [userLocation]);
+
+  // Automatic location polling every 5 minutes
+  useEffect(() => {
+    if (!setUserLocation) return;
+    const interval = setInterval(() => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setUserLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            });
+          }
+        );
+      }
+    }, 300000); // 5 minutes in ms
+
+    return () => clearInterval(interval);
+  }, [setUserLocation]);
+
+  // Check-in logic: call backend when userLocation changes
+  useEffect(() => {
+    async function checkInToNearbySite(userLocation: { lat: number; lng: number }) {
+      try {
+        const res = await fetch('/api/culturalsites/checkin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(userLocation),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          // Add the site to visitedSites state if not already present
+          if (data.site && !visitedSites.includes(data.site._id)) {
+            setVisitedSites((prev) => [...prev, data.site._id]);
+          }
+        }
+      } catch (err) {
+        // Optionally handle error
+      }
+    }
+    if (userLocation) {
+      checkInToNearbySite(userLocation);
+    }
+    // eslint-disable-next-line
   }, [userLocation]);
 
   // Floating "locate me" button
