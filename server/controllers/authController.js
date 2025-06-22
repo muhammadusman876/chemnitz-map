@@ -131,3 +131,29 @@ export const getCurrentUser = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+export const updateUser = async (req, res) => {
+  try {
+    const userId = req.user?.id; // Use req.user.id if using auth middleware
+    const updateFields = { ...req.body };
+
+    // Prevent updating sensitive fields directly
+    delete updateFields.password;
+    delete updateFields.role;
+    delete updateFields.email; // Optional: prevent email change
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    res.json(updatedUser);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update user.", error: err.message });
+  }
+};

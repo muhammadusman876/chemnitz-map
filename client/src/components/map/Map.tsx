@@ -11,14 +11,10 @@ import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import userLocationIcon from '../../assets/shooting-target-color-icon(1).svg'; // adjust the path as needed
 import { checkinToNearbySite, getAllSitesForMap } from '../../api/mapApi';
 import { getMe } from '../../api/authApi';
+import { Fab, Tooltip } from "@mui/material";
+import MyLocationIcon from "@mui/icons-material/MyLocation";
 
-// Default marker icon
-const DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
+
 
 const CATEGORY_COLORS: Record<string, string> = {
   museum: '#2563eb',      // blue
@@ -309,21 +305,24 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
 
 
   return (
-    <div className="relative">
-      <div id="map" style={{ height: '600px', width: '100%' }} />
-      <div className="absolute bottom-6 right-6 z-[1000]">
-        <button
-          type="button"
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <div id="map" style={{ width: "100%", height: "100%" }} />
+      <Tooltip title="Go to my location" placement="left">
+        <Fab
+          color="primary"
           onClick={handleLocateMe}
-          className="bg-white shadow-lg rounded-full p-3 hover:bg-indigo-100 transition"
-          title="Go to my location"
+          sx={{
+            position: "absolute",
+            bottom: 32,
+            right: 32,
+            zIndex: 1000,
+            boxShadow: 4,
+          }}
+          aria-label="locate me"
         >
-          <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" />
-          </svg>
-        </button>
-      </div>
+          <MyLocationIcon />
+        </Fab>
+      </Tooltip>
     </div>
   );
 };

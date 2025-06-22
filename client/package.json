@@ -10,7 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.1.10",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^7.1.2",
+    "@mui/material": "^7.1.2",
     "axios": "^1.10.0",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
@@ -18,8 +21,7 @@
     "react-dom": "^19.1.0",
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.6.2",
-    "react-select": "^5.10.1",
-    "tailwindcss": "^4.1.10"
+    "react-select": "^5.10.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",

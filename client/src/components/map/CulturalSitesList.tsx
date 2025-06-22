@@ -1,6 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import L from 'leaflet';
 import Select from 'react-select';
+import {
+    Box,
+    Typography,
+    TextField,
+    InputAdornment,
+    CircularProgress,
+    List,
+    ListItem,
+    ListItemText,
+    Divider,
+    Chip,
+    Stack,
+} from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
 
 interface CulturalSite {
     _id: string;
@@ -36,9 +50,9 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
     const [sites, setSites] = useState<CulturalSite[]>([]);
     const [categories, setCategories] = useState<string[]>([]);
     const [search, setSearch] = useState<string>('');
-    const [loading, setLoading] = useState<boolean>(false); // <-- NEW
+    const [loading, setLoading] = useState<boolean>(false);
 
-    // Fetch all sites and categories on mount
+    // Fetch all categories on mount
     useEffect(() => {
         fetch('http://localhost:5000/api/admin/')
             .then(res => res.json())
@@ -49,7 +63,7 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
 
     // Fetch sites for selected category and search
     useEffect(() => {
-        setLoading(true); // <-- NEW
+        setLoading(true);
         const params = new URLSearchParams();
         if (selectedCategory) params.append('category', selectedCategory);
         if (search) params.append('q', search);
@@ -59,9 +73,9 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
             .then(res => res.json())
             .then(data => {
                 setSites(data);
-                setLoading(false); // <-- NEW
+                setLoading(false);
             })
-            .catch(() => setLoading(false)); // <-- NEW
+            .catch(() => setLoading(false));
     }, [selectedCategory, search]);
 
     const shouldScroll = sites.length > 5;
@@ -76,126 +90,152 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
         }))
     ];
 
-    // Simple spinner SVG
-    const Spinner = () => (
-        <svg className="animate-spin h-4 w-4 text-indigo-600 inline-block ml-2" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-        </svg>
-    );
-
     return (
-        <div className="max-w-3xl mx-auto p-6 bg-white rounded-xl shadow-lg mt-8">
-            <h2 className="text-3xl font-bold mb-6 text-center text-indigo-700">Cultural Sites</h2>
+        <Box>
+            <Typography variant="h4" fontWeight={800} align="center" color="primary" gutterBottom>
+                Cultural Sites
+            </Typography>
             {/* Search input */}
-            <div className="mb-4 flex items-center">
-                <input
-                    type="text"
+            <Box sx={{ mb: 3 }}>
+                <TextField
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                     placeholder="Search by name or description..."
-                    className="px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition w-full"
+                    fullWidth
+                    InputProps={{
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon color="primary" />
+                            </InputAdornment>
+                        ),
+                    }}
+                    variant="outlined"
+                    sx={{ background: "#f8fafc", borderRadius: 2 }}
                 />
-            </div>
-            <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
-                <label className="font-medium text-gray-700 w-full sm:w-auto">
-                    Filter by category:
-                    <div className="mt-2 sm:mt-0 sm:ml-2 min-w-[180px]">
-                        <Select
-                            value={categoryOptions.find(opt => opt.value === selectedCategory)}
-                            onChange={opt => setSelectedCategory(opt?.value || '')}
-                            options={categoryOptions}
-                            isSearchable={false}
-                            styles={{
-                                option: (styles, { data, isFocused, isSelected }) => ({
-                                    ...styles,
-                                    backgroundColor: isSelected
-                                        ? data.color
-                                        : isFocused
-                                            ? '#e0e7ff'
-                                            : undefined,
-                                    color: isSelected
-                                        ? '#fff'
-                                        : '#334155', // Always dark text for unselected/unfocused
-                                    fontWeight: isSelected ? 700 : 400,
-                                }),
-                                singleValue: (styles, { data }) => ({
-                                    ...styles,
-                                    backgroundColor: data.color,
-                                    color: '#fff',
-                                    padding: '2px 8px',
-                                    borderRadius: '4px',
-                                    fontWeight: 600,
-                                }),
-                                control: (styles) => ({
-                                    ...styles,
-                                    minHeight: '40px',
-                                }),
-                                menu: (styles) => ({
-                                    ...styles,
-                                    zIndex: 20,
-                                }),
-                            }}
-                        />
-                    </div>
-                </label>
-                <span className="text-sm text-gray-500 flex items-center">
+            </Box>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+                <Box sx={{ minWidth: 220 }}>
+                    <Typography variant="subtitle1" fontWeight={600} color="text.secondary" sx={{ mb: 1 }}>
+                        Filter by category:
+                    </Typography>
+                    <Select
+                        value={categoryOptions.find(opt => opt.value === selectedCategory)}
+                        onChange={opt => setSelectedCategory(opt?.value || '')}
+                        options={categoryOptions}
+                        isSearchable={false}
+                        styles={{
+                            option: (styles, { data, isFocused, isSelected }) => ({
+                                ...styles,
+                                backgroundColor: isSelected
+                                    ? data.color
+                                    : isFocused
+                                        ? '#e0e7ff'
+                                        : undefined,
+                                color: isSelected
+                                    ? '#fff'
+                                    : '#334155',
+                                fontWeight: isSelected ? 700 : 400,
+                            }),
+                            singleValue: (styles, { data }) => ({
+                                ...styles,
+                                backgroundColor: data.color,
+                                color: '#fff',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontWeight: 600,
+                            }),
+                            control: (styles) => ({
+                                ...styles,
+                                minHeight: '40px',
+                            }),
+                            menu: (styles) => ({
+                                ...styles,
+                                zIndex: 20,
+                            }),
+                        }}
+                    />
+                </Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: { xs: 2, sm: 0 } }}>
                     {loading ? (
                         <>
-                            Loading
-                            <Spinner />
+                            Loading <CircularProgress size={16} sx={{ ml: 1 }} />
                         </>
                     ) : (
                         <>
-                            Showing {sites.length}{"  "}
+                            Showing {sites.length}{" "}
                             {selectedCategory === ""
                                 ? "sites"
                                 : categoryOptions.find(opt => opt.value === selectedCategory)?.label || "sites"}
                         </>
                     )}
-                </span>
-            </div>
-            {/* "All" category: flat, scrollable list */}
-            {selectedCategory === '' ? (
-                <div className="h-96 overflow-y-auto border rounded p-2 bg-gray-50">
-                    <ul>
-                        {sites.map(site => (
-                            <li
-                                key={site._id}
-                                className="py-2 px-2 hover:bg-indigo-50 rounded transition cursor-pointer"
+                </Typography>
+            </Stack>
+            {/* List */}
+            <Box
+                sx={{
+                    border: "1px solid #e0e7ef",
+                    borderRadius: 3,
+                    background: "#f8fafc",
+                    p: 2,
+                    maxHeight: selectedCategory === '' ? 400 : shouldScroll ? 300 : "auto",
+                    overflowY: selectedCategory === '' || shouldScroll ? "auto" : "visible",
+                }}
+            >
+                <List>
+                    {sites.map(site => (
+                        <React.Fragment key={site._id}>
+                            <ListItem
+                                button
                                 onClick={() => onSiteClick([site.coordinates.lat, site.coordinates.lng])}
+                                sx={{
+                                    borderRadius: 2,
+                                    mb: 1,
+                                    transition: "background 0.2s",
+                                    "&:hover": { background: "#e0e7ff" },
+                                    alignItems: "flex-start",
+                                }}
                             >
-                                <span
-                                    className="font-semibold"
-                                    style={{ color: CATEGORY_COLORS[site.category] || '#334155' }}
-                                >
-                                    {site.name}
-                                </span>
-                                {site.description && (
-                                    <span className="block text-sm text-gray-600">{site.description}</span>
-                                )}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            ) : (
-                // Other categories: scrollable if more than 5 sites
-                <div className={shouldScroll ? "max-h-64 overflow-y-auto border rounded p-2 bg-gray-50" : ""}>
-                    <ul className="divide-y divide-gray-200">
-                        {sites.map(site => (
-                            <li
-                                key={site._id}
-                                className="py-4 px-2 hover:bg-indigo-50 rounded transition flex flex-col gap-1 cursor-pointer"
-                                onClick={() => onSiteClick([site.coordinates.lat, site.coordinates.lng])}
-                            >
-                                <span className="font-semibold text-lg text-indigo-800">{site.name}</span>
-                                <span className="text-sm text-gray-600">{site.description}</span>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-        </div>
+                                <ListItemText
+                                    primary={
+                                        <Stack direction="row" alignItems="center" spacing={1}>
+                                            <Typography
+                                                variant="subtitle1"
+                                                fontWeight={700}
+                                                color={CATEGORY_COLORS[site.category] || "text.primary"}
+                                            >
+                                                {site.name}
+                                            </Typography>
+                                            <Chip
+                                                label={site.category.charAt(0).toUpperCase() + site.category.slice(1)}
+                                                size="small"
+                                                sx={{
+                                                    background: CATEGORY_COLORS[site.category] || "#334155",
+                                                    color: "#fff",
+                                                    fontWeight: 600,
+                                                }}
+                                            />
+                                        </Stack>
+                                    }
+                                    secondary={
+                                        site.description && (
+                                            <Typography variant="body2" color="text.secondary">
+                                                {site.description}
+                                            </Typography>
+                                        )
+                                    }
+                                />
+                            </ListItem>
+                            <Divider />
+                        </React.Fragment>
+                    ))}
+                    {!sites.length && !loading && (
+                        <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 2 }}>
+                            No sites found.
+                        </Typography>
+                    )}
+                </List>
+            </Box>
+        </Box>
     );
 };
 

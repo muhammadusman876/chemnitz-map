@@ -1,163 +1,266 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import {
+  Box,
+  Button,
+  Container,
+  TextField,
+  Typography,
+  Alert,
+  CircularProgress,
+  Paper,
+  InputAdornment,
+  IconButton,
+} from '@mui/material';
+import PersonIcon from '@mui/icons-material/Person';
+import EmailIcon from '@mui/icons-material/Email';
+import LockIcon from '@mui/icons-material/Lock';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 
 const Register = () => {
-    const navigate = useNavigate();
-    const { register } = useAuth(); // Use this instead of direct fetch
-    const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        password: '',
-        confirmPassword: '',
+  const navigate = useNavigate();
+  const { register } = useAuth();
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
     });
-    const [error, setError] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+  };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value,
-        });
-    };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
+    // Validation
+    if (!formData.name || !formData.email || !formData.password) {
+      setError('Please fill in all fields');
+      return;
+    }
 
-        // Validation
-        if (!formData.name || !formData.email || !formData.password) {
-            setError('Please fill in all fields');
-            return;
-        }
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
 
-        if (formData.password !== formData.confirmPassword) {
-            setError('Passwords do not match');
-            return;
-        }
+    setIsLoading(true);
 
-        setIsLoading(true);
+    try {
+      await register(formData.name, formData.email, formData.password);
+      navigate('/dashboard');
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || err.message || 'Registration failed';
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-        try {
-            // Use the register function from context instead of direct fetch
-            await register(formData.name, formData.email, formData.password);
-            navigate('/dashboard');
-        } catch (err: any) {
-            // Handle error from context
-            const errorMessage = err.response?.data?.message || err.message || 'Registration failed';
-            setError(errorMessage);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+  return (
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #e0e7ff 0%, #f0fdfa 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Container maxWidth="xs">
+        <Paper
+          elevation={6}
+          sx={{
+            borderRadius: 4,
+            p: { xs: 3, sm: 5 },
+            boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <Typography
+            variant="h4"
+            align="center"
+            fontWeight={800}
+            gutterBottom
+            sx={{
+              letterSpacing: 1,
+              color: 'primary.main',
+              mb: 1,
+            }}
+          >
+            Create Account
+          </Typography>
+          <Typography
+            variant="subtitle1"
+            align="center"
+            color="text.secondary"
+            sx={{ mb: 3 }}
+          >
+            Join the Cultural Explorer community!
+          </Typography>
 
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full space-y-8">
-                <div>
-                    <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
-                        Create a new account
-                    </h2>
-                </div>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
 
-                {error && (
-                    <div className="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
-                        {error}
-                    </div>
-                )}
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+            <TextField
+              label="Full Name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              fullWidth
+              margin="normal"
+              required
+              autoFocus
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PersonIcon color="primary" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                background: '#f8fafc',
+                borderRadius: 2,
+              }}
+            />
+            <TextField
+              label="Email Address"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              fullWidth
+              margin="normal"
+              required
+              autoComplete="email"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <EmailIcon color="primary" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                background: '#f8fafc',
+                borderRadius: 2,
+              }}
+            />
+            <TextField
+              label="Password"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              value={formData.password}
+              onChange={handleChange}
+              fullWidth
+              margin="normal"
+              required
+              autoComplete="new-password"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockIcon color="primary" />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle password visibility"
+                      onClick={() => setShowPassword((show) => !show)}
+                      edge="end"
+                      size="small"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                background: '#f8fafc',
+                borderRadius: 2,
+              }}
+            />
+            <TextField
+              label="Confirm Password"
+              name="confirmPassword"
+              type={showConfirm ? 'text' : 'password'}
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              fullWidth
+              margin="normal"
+              required
+              autoComplete="new-password"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockIcon color="primary" />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle confirm password visibility"
+                      onClick={() => setShowConfirm((show) => !show)}
+                      edge="end"
+                      size="small"
+                    >
+                      {showConfirm ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                background: '#f8fafc',
+                borderRadius: 2,
+              }}
+            />
 
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    <div className="rounded-md shadow-sm -space-y-px">
-                        <div>
-                            <label htmlFor="name" className="sr-only">Full Name</label>
-                            <input
-                                id="name"
-                                name="name"
-                                type="text"
-                                autoComplete="name"
-                                required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                placeholder="Full Name"
-                                value={formData.name}
-                                onChange={handleChange}
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="email" className="sr-only">Email address</label>
-                            <input
-                                id="email"
-                                name="email"
-                                type="email"
-                                autoComplete="email"
-                                required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                placeholder="Email address"
-                                value={formData.email}
-                                onChange={handleChange}
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="password" className="sr-only">Password</label>
-                            <input
-                                id="password"
-                                name="password"
-                                type="password"
-                                autoComplete="new-password"
-                                required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                placeholder="Password"
-                                value={formData.password}
-                                onChange={handleChange}
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="confirmPassword" className="sr-only">Confirm Password</label>
-                            <input
-                                id="confirmPassword"
-                                name="confirmPassword"
-                                type="password"
-                                autoComplete="new-password"
-                                required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                placeholder="Confirm Password"
-                                value={formData.confirmPassword}
-                                onChange={handleChange}
-                            />
-                        </div>
-                    </div>
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              fullWidth
+              sx={{
+                mt: 3,
+                mb: 2,
+                py: 1.5,
+                fontWeight: 700,
+                fontSize: '1.1rem',
+                borderRadius: 2,
+                boxShadow: '0 2px 8px 0 rgba(31, 38, 135, 0.10)',
+                textTransform: 'none',
+              }}
+              disabled={isLoading}
+              startIcon={isLoading ? <CircularProgress size={20} /> : null}
+            >
+              {isLoading ? 'Creating account...' : 'Sign up'}
+            </Button>
+          </Box>
 
-                    <div>
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                        >
-                            {isLoading ? (
-                                <>
-                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Creating account...
-                                </>
-                            ) : (
-                                'Sign up'
-                            )}
-                        </button>
-                    </div>
-                </form>
-
-                <div className="text-sm text-center mt-2">
-                    <p>
-                        Already have an account?{' '}
-                        <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
-                            Sign in
-                        </Link>
-                    </p>
-                </div>
-            </div>
-        </div>
-    );
+          <Typography variant="body2" align="center" sx={{ mt: 2 }}>
+            Already have an account?{' '}
+            <Link to="/login" style={{ color: '#1976d2', fontWeight: 600 }}>
+              Sign in
+            </Link>
+          </Typography>
+        </Paper>
+      </Container>
+    </Box>
+  );
 };
 
 export default Register;

@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import Map from './Map';
 import CulturalSitesList from './CulturalSitesList';
+import {
+  Box,
+  CircularProgress,
+  Alert,
+  Fab,
+  Tooltip,
+  Modal,
+  Fade,
+  Backdrop,
+} from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+
+const NAVBAR_HEIGHT = 64; // adjust if your navbar is a different height
 
 const MapContainer = () => {
   const [geoJsonData, setGeoJsonData] = useState<any>(null);
@@ -9,6 +22,8 @@ const MapContainer = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [openModal, setOpenModal] = useState(false);
+  const [fabY, setFabY] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -74,24 +89,112 @@ const MapContainer = () => {
       });
   }, [selectedCategory]);
 
-  if (loading) return <div>Loading map data...</div>;
-  if (error) return <div>Error loading map: {error}</div>;
+  // Animate the Fab down when modal opens
+  useEffect(() => {
+    if (openModal) {
+      setTimeout(() => setFabY(80), 10); // animate down 80px
+    } else {
+      setFabY(0);
+    }
+  }, [openModal]);
 
   return (
-    <div className="map-container">
-      <h2>Chemnitz Cultural Sites Map</h2>
-      <CulturalSitesList
-        onSiteClick={setSelectedCoords}
-        selectedCategory={selectedCategory}
-        setSelectedCategory={setSelectedCategory}
-      />
+    <Box
+      sx={{
+        position: "relative",
+        width: "100%",
+        height: { xs: `calc(100vh - ${NAVBAR_HEIGHT}px)`, sm: `calc(100vh - ${NAVBAR_HEIGHT}px)` },
+        overflow: "hidden",
+        m: 0,
+        p: 0,
+        background: "#f8fafc",
+      }}
+    >
       <Map
         geoJsonData={geoJsonData}
         selectedCoords={selectedCoords}
         userLocation={userLocation}
-        setUserLocation={setUserLocation} // Pass setter for floating button in Map
+        setUserLocation={setUserLocation}
       />
-    </div>
+      {/* Centered Fab */}
+      <Tooltip title="Search Cultural Sites">
+        <Fab
+          color="primary"
+          sx={{
+            position: "absolute",
+            left: "50%",
+            transform: `translate(-50%, ${fabY}px)`,
+            top: 16,
+            zIndex: 1200,
+            width: 56,
+            height: 56,
+            boxShadow: 4,
+            transition: "transform 0.4s cubic-bezier(0.4,0,0.2,1)",
+          }}
+          onClick={() => setOpenModal(true)}
+          aria-label="search-sites"
+        >
+          <SearchIcon fontSize="large" />
+          {loading && (
+            <CircularProgress
+              size={24}
+              color="inherit"
+              sx={{
+                position: "absolute",
+                top: 16,
+                left: 16,
+                zIndex: 1300,
+              }}
+            />
+          )}
+        </Fab>
+      </Tooltip>
+      {/* Modal for CulturalSitesList */}
+      <Modal
+        open={openModal}
+        onClose={() => setOpenModal(false)}
+        closeAfterTransition
+        slots={{ backdrop: Backdrop }}
+        slotProps={{
+          backdrop: {
+            timeout: 300,
+            sx: { backgroundColor: "rgba(30,41,59,0.25)" },
+          },
+        }}
+      >
+        <Fade in={openModal}>
+          <Box
+            sx={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: { xs: "95vw", md: 900 },
+              maxHeight: { xs: "80vh", sm: 600 },
+              bgcolor: "background.paper",
+              borderRadius: 4,
+              boxShadow: 24,
+              p: { xs: 2, sm: 4 },
+              outline: "none",
+              overflowY: "auto",
+            }}
+          >
+            {error ? (
+              <Alert severity="error">{error}</Alert>
+            ) : (
+              <CulturalSitesList
+                onSiteClick={coords => {
+                  setSelectedCoords(coords);
+                  setOpenModal(false);
+                }}
+                selectedCategory={selectedCategory}
+                setSelectedCategory={setSelectedCategory}
+              />
+            )}
+          </Box>
+        </Fade>
+      </Modal>
+    </Box>
   );
 };
 
