@@ -12,7 +12,7 @@ export const checkinToNearbySite = (location: { lat: number; lng: number }) => {
 
 // Example: Get all sites for map
 export const getAllSitesForMap = () => {
-  return mapApi.get("/categories");
+  return mapApi.get("/map");
 };
 
 // Add more map-related API functions as needed

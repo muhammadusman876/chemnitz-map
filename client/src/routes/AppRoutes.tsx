@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 // import Home from '../pages/Home';
 // import Login from '../pages/Login';
 import Register from '../pages/Register';
+import Login from '../pages/Login';
 // import Profile from '../pages/Profile';
 // import Dashboard from '../pages/Dashboard';
 // import NotFound from '../pages/NotFound';
@@ -47,14 +48,14 @@ const AppRoutes: React.FC = () => {
             {/* <Route path="/" element={<Home />} /> */}
 
             {/* Guest-only routes */}
-            {/* <Route
+            <Route
                 path="/login"
                 element={
                     <GuestRoute>
                         <Login />
                     </GuestRoute>
                 }
-            /> */}
+            />
             <Route
                 path="/register"
                 element={

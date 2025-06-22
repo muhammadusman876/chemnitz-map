@@ -9,6 +9,8 @@ import 'leaflet.markercluster/dist/leaflet.markercluster.js';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import userLocationIcon from '../../assets/shooting-target-color-icon(1).svg'; // adjust the path as needed
+import { checkinToNearbySite, getAllSitesForMap } from '../../api/mapApi';
+import { getMe } from '../../api/authApi';
 
 // Default marker icon
 const DefaultIcon = L.icon({
@@ -76,12 +78,21 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
   useEffect(() => {
     async function fetchVisited() {
       try {
-        const res = await fetch('/api/users/me', { credentials: 'include' });
-        if (res.ok) {
-          const user = await res.json();
-          setVisitedSites(user.visitedSites || []);
+        const res = await getMe();
+        if (res.status === 200) {
+          const user = res.data.user;
+          console.log(user, "User data fetched successfully");
+          // If visitedSites is an array of objects, extract _id
+          if (user.visitedSites && user.visitedSites.length > 0 && typeof user.visitedSites[0] === 'object') {
+            setVisitedSites(user.visitedSites.map((site: any) => site._id));
+          } else {
+            setVisitedSites(user.visitedSites || []);
+          }
+          console.log(user.visitedSites, "Visited sites fetched successfully");
         }
-      } catch { }
+      } catch (err) {
+        console.error("Failed to fetch visited sites", err);
+      }
     }
     fetchVisited();
   }, []);
@@ -260,14 +271,9 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
   useEffect(() => {
     async function checkInToNearbySite(userLocation: { lat: number; lng: number }) {
       try {
-        const res = await fetch('/api/culturalsites/checkin', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(userLocation),
-        });
-        const data = await res.json();
-        if (res.ok) {
+        const res = await checkinToNearbySite(userLocation);
+        const data = res.data;
+        if (res.status === 200) {
           // Add the site to visitedSites state if not already present
           if (data.site && !visitedSites.includes(data.site._id)) {
             setVisitedSites((prev) => [...prev, data.site._id]);
@@ -300,6 +306,7 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
       { enableHighAccuracy: true }
     );
   };
+
 
   return (
     <div className="relative">

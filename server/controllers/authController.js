@@ -107,18 +107,23 @@ export const logout = (req, res) => {
 // Get current user
 export const getCurrentUser = async (req, res) => {
   try {
-    // req.user.id is set by the authMiddleware
     const user = await User.findById(req.user.id).select("-password");
-
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-
     res.json({
       user: {
         id: user._id,
         username: user.username,
         email: user.email,
+        avatar: user.avatar,
+        location: user.location,
+        favorites: user.favorites,
+        visitedSites: user.visitedSites,
+        role: user.role,
+        settings: user.settings,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       },
     });
   } catch (err) {
