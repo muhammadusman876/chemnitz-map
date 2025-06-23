@@ -1,10 +1,21 @@
 export interface User {
   id: string;
   email: string;
-  username: string;  // Changed from optional to required
+  username: string;
+  avatar?: string;
+  location?: {
+    lat?: number;
+    lng?: number;
+    address?: string;
+  };
+  favorites?: string[]; // Array of CulturalSite ObjectIds as strings
+  visitedSites?: string[]; // Array of CulturalSite ObjectIds as strings
+  role?: string;
+  settings?: {
+    theme?: "light" | "dark";
+  };
   createdAt?: string;
   updatedAt?: string;
-  // Add any other user properties your API returns
 }
 
 export interface LoginRequest {
@@ -15,7 +26,7 @@ export interface LoginRequest {
 export interface RegisterRequest {
   email: string;
   password: string;
-  username: string;  // Changed from name to username and made required
+  username: string; // Changed from name to username and made required
 }
 
 export interface AuthResponse {

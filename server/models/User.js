@@ -16,7 +16,9 @@ const userSchema = new mongoose.Schema(
       { type: mongoose.Schema.Types.ObjectId, ref: "CulturalSite" },
     ],
     role: { type: String, default: "user" },
-    settings: { type: Object },
+    settings: {
+      theme: { type: String, enum: ["light", "dark"], default: "light" },
+    },
   },
   { timestamps: true }
 );

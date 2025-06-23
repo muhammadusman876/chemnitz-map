@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import L from 'leaflet';
-import Select from 'react-select';
 import {
     Box,
     Typography,
-    TextField,
-    InputAdornment,
     CircularProgress,
     List,
     ListItem,
@@ -13,8 +9,11 @@ import {
     Divider,
     Chip,
     Stack,
+    Fade,
+    Avatar,
+    useTheme,
 } from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
+import PlaceIcon from '@mui/icons-material/Place';
 
 interface CulturalSite {
     _id: string;
@@ -31,14 +30,17 @@ type CulturalSitesListProps = {
     onSiteClick: React.Dispatch<React.SetStateAction<[number, number] | null>>;
     selectedCategory: string;
     setSelectedCategory: React.Dispatch<React.SetStateAction<string>>;
+    search: string;
+    categories: string[];
+    setCategories: React.Dispatch<React.SetStateAction<string[]>>;
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-    museum: '#2563eb',      // blue
-    restaurant: '#16a34a',  // green
-    artwork: '#f59e42',     // orange
-    theatre: '#a21caf',     // purple
-    hotel: '#e11d48',       // red
+    museum: '#2563eb',
+    restaurant: '#16a34a',
+    artwork: '#f59e42',
+    theatre: '#a21caf',
+    hotel: '#e11d48',
     // ...add more as needed
 };
 
@@ -46,20 +48,14 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
     onSiteClick,
     selectedCategory,
     setSelectedCategory,
+    search,
+    categories,
+    setCategories,
 }) => {
     const [sites, setSites] = useState<CulturalSite[]>([]);
-    const [categories, setCategories] = useState<string[]>([]);
-    const [search, setSearch] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(false);
 
-    // Fetch all categories on mount
-    useEffect(() => {
-        fetch('http://localhost:5000/api/admin/')
-            .then(res => res.json())
-            .then(data => {
-                setCategories(Array.from(new Set(data.map((site: CulturalSite) => site.category))));
-            });
-    }, []);
+    const theme = useTheme();
 
     // Fetch sites for selected category and search
     useEffect(() => {
@@ -74,88 +70,32 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
             .then(data => {
                 setSites(data);
                 setLoading(false);
+                // Update categories if not set yet
+                if (categories.length === 0 && data.length > 0) {
+                    setCategories(Array.from(new Set(data.map((site: CulturalSite) => site.category))));
+                }
             })
             .catch(() => setLoading(false));
-    }, [selectedCategory, search]);
+    }, [selectedCategory, search, setCategories, categories.length]);
 
-    const shouldScroll = sites.length > 5;
-
-    // Prepare options for react-select
-    const categoryOptions = [
-        { value: '', label: 'All', color: '#334155' },
-        ...categories.map(cat => ({
-            value: cat,
-            label: cat.charAt(0).toUpperCase() + cat.slice(1),
-            color: CATEGORY_COLORS[cat] || '#334155'
-        }))
-    ];
+    const shouldScroll = sites.length > 6;
 
     return (
         <Box>
-            <Typography variant="h4" fontWeight={800} align="center" color="primary" gutterBottom>
-                Cultural Sites
-            </Typography>
-            {/* Search input */}
-            <Box sx={{ mb: 3 }}>
-                <TextField
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Search by name or description..."
-                    fullWidth
-                    InputProps={{
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                <SearchIcon color="primary" />
-                            </InputAdornment>
-                        ),
-                    }}
-                    variant="outlined"
-                    sx={{ background: "#f8fafc", borderRadius: 2 }}
-                />
-            </Box>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
-                <Box sx={{ minWidth: 220 }}>
-                    <Typography variant="subtitle1" fontWeight={600} color="text.secondary" sx={{ mb: 1 }}>
-                        Filter by category:
-                    </Typography>
-                    <Select
-                        value={categoryOptions.find(opt => opt.value === selectedCategory)}
-                        onChange={opt => setSelectedCategory(opt?.value || '')}
-                        options={categoryOptions}
-                        isSearchable={false}
-                        styles={{
-                            option: (styles, { data, isFocused, isSelected }) => ({
-                                ...styles,
-                                backgroundColor: isSelected
-                                    ? data.color
-                                    : isFocused
-                                        ? '#e0e7ff'
-                                        : undefined,
-                                color: isSelected
-                                    ? '#fff'
-                                    : '#334155',
-                                fontWeight: isSelected ? 700 : 400,
-                            }),
-                            singleValue: (styles, { data }) => ({
-                                ...styles,
-                                backgroundColor: data.color,
-                                color: '#fff',
-                                padding: '2px 8px',
-                                borderRadius: '4px',
-                                fontWeight: 600,
-                            }),
-                            control: (styles) => ({
-                                ...styles,
-                                minHeight: '40px',
-                            }),
-                            menu: (styles) => ({
-                                ...styles,
-                                zIndex: 20,
-                            }),
-                        }}
-                    />
-                </Box>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: { xs: 2, sm: 0 } }}>
+            <Box
+                sx={{
+                    border: "1px solid #e0e7ef",
+                    borderRadius: 3,
+                    background: theme.palette.mode === 'dark' ? "#18181b" : "#f8fafc",
+                    p: 2,
+                    maxHeight: shouldScroll ? 420 : "auto",
+                    overflowY: shouldScroll ? "auto" : "visible",
+                    boxShadow: '0 2px 12px 0 rgba(0,0,0,0.04)',
+                    minHeight: 200,
+                    transition: "background 0.3s",
+                }}
+            >
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                     {loading ? (
                         <>
                             Loading <CircularProgress size={16} sx={{ ml: 1 }} />
@@ -165,68 +105,83 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                             Showing {sites.length}{" "}
                             {selectedCategory === ""
                                 ? "sites"
-                                : categoryOptions.find(opt => opt.value === selectedCategory)?.label || "sites"}
+                                : categories.find(cat => cat === selectedCategory) || "sites"}
                         </>
                     )}
                 </Typography>
-            </Stack>
-            {/* List */}
-            <Box
-                sx={{
-                    border: "1px solid #e0e7ef",
-                    borderRadius: 3,
-                    background: "#f8fafc",
-                    p: 2,
-                    maxHeight: selectedCategory === '' ? 400 : shouldScroll ? 300 : "auto",
-                    overflowY: selectedCategory === '' || shouldScroll ? "auto" : "visible",
-                }}
-            >
-                <List>
+                <List disablePadding>
                     {sites.map(site => (
-                        <React.Fragment key={site._id}>
-                            <ListItem
-                                button
-                                onClick={() => onSiteClick([site.coordinates.lat, site.coordinates.lng])}
-                                sx={{
-                                    borderRadius: 2,
-                                    mb: 1,
-                                    transition: "background 0.2s",
-                                    "&:hover": { background: "#e0e7ff" },
-                                    alignItems: "flex-start",
-                                }}
-                            >
-                                <ListItemText
-                                    primary={
-                                        <Stack direction="row" alignItems="center" spacing={1}>
-                                            <Typography
-                                                variant="subtitle1"
-                                                fontWeight={700}
-                                                color={CATEGORY_COLORS[site.category] || "text.primary"}
-                                            >
-                                                {site.name}
-                                            </Typography>
-                                            <Chip
-                                                label={site.category.charAt(0).toUpperCase() + site.category.slice(1)}
-                                                size="small"
-                                                sx={{
-                                                    background: CATEGORY_COLORS[site.category] || "#334155",
-                                                    color: "#fff",
-                                                    fontWeight: 600,
-                                                }}
-                                            />
-                                        </Stack>
-                                    }
-                                    secondary={
-                                        site.description && (
-                                            <Typography variant="body2" color="text.secondary">
-                                                {site.description}
-                                            </Typography>
-                                        )
-                                    }
-                                />
-                            </ListItem>
-                            <Divider />
-                        </React.Fragment>
+                        <Fade in timeout={350} key={site._id}>
+                            <Box>
+                                <ListItem
+                                    onClick={() => onSiteClick([site.coordinates.lat, site.coordinates.lng])}
+                                    sx={{
+                                        borderRadius: 2,
+                                        mb: 1,
+                                        px: 1.5,
+                                        py: 1.2,
+                                        transition: "background 0.2s, box-shadow 0.2s",
+                                        "&:hover": {
+                                            background: theme.palette.mode === 'dark' ? "#27272a" : "#e0e7ff",
+                                            boxShadow: 2,
+                                        },
+                                        alignItems: "flex-start",
+                                        gap: 1,
+                                        cursor: "pointer",
+                                        background: theme.palette.mode === 'dark' ? "#23232b" : "#fff",
+                                        boxShadow: "0 1px 4px 0 rgba(0,0,0,0.04)",
+                                    }}
+                                >
+                                    <Avatar
+                                        sx={{
+                                            bgcolor: CATEGORY_COLORS[site.category] || "#64748b",
+                                            width: 40,
+                                            height: 40,
+                                            mr: 2,
+                                            boxShadow: "0 2px 8px 0 rgba(0,0,0,0.10)",
+                                        }}
+                                    >
+                                        <PlaceIcon sx={{ color: "#fff" }} />
+                                    </Avatar>
+                                    <ListItemText
+                                        primary={
+                                            <Stack direction="row" alignItems="center" spacing={1}>
+                                                <Typography
+                                                    variant="subtitle1"
+                                                    fontWeight={700}
+                                                    color={CATEGORY_COLORS[site.category] || "text.primary"}
+                                                    sx={{ letterSpacing: 0.2 }}
+                                                >
+                                                    {site.name}
+                                                </Typography>
+                                                <Chip
+                                                    label={site.category.charAt(0).toUpperCase() + site.category.slice(1)}
+                                                    size="small"
+                                                    sx={{
+                                                        background: CATEGORY_COLORS[site.category] || "#334155",
+                                                        color: "#fff",
+                                                        fontWeight: 600,
+                                                        ml: 0.5,
+                                                        letterSpacing: 0.5,
+                                                        px: 1,
+                                                    }}
+                                                />
+                                            </Stack>
+                                        }
+                                        secondary={
+                                            site.description && (
+                                                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                                    {site.description.length > 90
+                                                        ? site.description.slice(0, 90) + "…"
+                                                        : site.description}
+                                                </Typography>
+                                            )
+                                        }
+                                    />
+                                </ListItem>
+                                <Divider />
+                            </Box>
+                        </Fade>
                     ))}
                     {!sites.length && !loading && (
                         <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 2 }}>

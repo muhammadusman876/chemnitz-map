@@ -9,12 +9,10 @@ import 'leaflet.markercluster/dist/leaflet.markercluster.js';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import userLocationIcon from '../../assets/shooting-target-color-icon(1).svg'; // adjust the path as needed
-import { checkinToNearbySite, getAllSitesForMap } from '../../api/mapApi';
+import { checkinToNearbySite } from '../../api/mapApi';
 import { getMe } from '../../api/authApi';
-import { Fab, Tooltip } from "@mui/material";
+import { Fab, Tooltip, Chip, Stack, Paper, useTheme } from "@mui/material";
 import MyLocationIcon from "@mui/icons-material/MyLocation";
-
-
 
 const CATEGORY_COLORS: Record<string, string> = {
   museum: '#2563eb',      // blue
@@ -52,17 +50,34 @@ interface MapProps {
   selectedCoords: [number, number] | null;
   userLocation?: { lat: number; lng: number } | null;
   setUserLocation?: (loc: { lat: number; lng: number }) => void;
+  themeMode?: "light" | "dark";
+  selectedCategory: string;
+  setSelectedCategory: React.Dispatch<React.SetStateAction<string>>;
+  categories: string[];
+  setSelectedSite?: (site: any) => void; // <-- Add this prop
 }
 
-const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, setUserLocation }) => {
+const Map: React.FC<MapProps> = ({
+  geoJsonData,
+  selectedCoords,
+  userLocation,
+  setUserLocation,
+  themeMode,
+  selectedCategory,
+  setSelectedCategory,
+  categories,
+  setSelectedSite, // <-- Add this prop
+}) => {
   const chemnitzCoordinates: [number, number] = [50.8621274, 12.9677156];
   const mapRef = useRef<L.Map | null>(null);
   const clusterLayerRef = useRef<L.MarkerClusterGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const userCircleRef = useRef<L.Circle | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
 
   // Store visited site IDs for the current user
   const [visitedSites, setVisitedSites] = useState<string[]>([]);
+  const theme = useTheme();
 
   // Helper to compare coordinates
   const isSelected = (lat: number, lng: number) =>
@@ -77,14 +92,11 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
         const res = await getMe();
         if (res.status === 200) {
           const user = res.data.user;
-          console.log(user, "User data fetched successfully");
-          // If visitedSites is an array of objects, extract _id
           if (user.visitedSites && user.visitedSites.length > 0 && typeof user.visitedSites[0] === 'object') {
             setVisitedSites(user.visitedSites.map((site: any) => site._id));
           } else {
             setVisitedSites(user.visitedSites || []);
           }
-          console.log(user.visitedSites, "Visited sites fetched successfully");
         }
       } catch (err) {
         console.error("Failed to fetch visited sites", err);
@@ -93,15 +105,46 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
     fetchVisited();
   }, []);
 
-  // Initialize and update map markers
+  // Initialize map only once
   useEffect(() => {
-    // Initialize map only once
     if (!mapRef.current) {
       mapRef.current = L.map('map').setView(chemnitzCoordinates, 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-      }).addTo(mapRef.current);
     }
+  }, []);
+
+  // Handle tile layer switching on theme change
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Remove previous tile layer if exists
+    if (tileLayerRef.current) {
+      mapRef.current.removeLayer(tileLayerRef.current);
+    }
+
+    // Add new tile layer with correct theme
+    let tileUrl =
+      themeMode === "dark"
+        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+    let tileOptions: any = {
+      maxZoom: 19,
+      attribution:
+        themeMode === "dark"
+          ? '&copy; <a href="https://carto.com/">CartoDB</a>'
+          : '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>',
+    };
+
+    if (themeMode === "dark") {
+      tileOptions.subdomains = "abcd";
+    }
+
+    tileLayerRef.current = L.tileLayer(tileUrl, tileOptions).addTo(mapRef.current);
+  }, [themeMode]);
+
+  // Handle cluster and markers (do not refit bounds on theme change)
+  useEffect(() => {
+    if (!mapRef.current) return;
 
     // Remove previous cluster layer if exists
     if (clusterLayerRef.current) {
@@ -134,48 +177,18 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
             ? SelectedIcon
             : getCategoryIcon(props.category);
 
-        let popupContent = `<div style="min-width:200px">`;
-        if (props.name) popupContent += `<h3 style="margin-bottom:4px">${props.name}</h3>`;
-        if (props.category) popupContent += `<p><strong>Category:</strong> ${props.category}</p>`;
-        if (props.description) popupContent += `<p>${props.description}</p>`;
-        if (props.operator) popupContent += `<p><strong>Operator:</strong> ${props.operator}</p>`;
-        if (props.opening_hours) popupContent += `<p><strong>Opening Hours:</strong> ${props.opening_hours}</p>`;
-        if (props.fee) popupContent += `<p><strong>Fee:</strong> ${props.fee}</p>`;
-        if (props.cuisine) popupContent += `<p><strong>Cuisine:</strong> ${props.cuisine}</p>`;
-        if (props.phone) popupContent += `<p><strong>Phone:</strong> ${props.phone}</p>`;
-        if (props.artist_name) popupContent += `<p><strong>Artist:</strong> ${props.artist_name}</p>`;
-        if (props.artwork_type) popupContent += `<p><strong>Artwork Type:</strong> ${props.artwork_type}</p>`;
-        if (props.material) popupContent += `<p><strong>Material:</strong> ${props.material}</p>`;
-        if (props.start_date) popupContent += `<p><strong>Year:</strong> ${props.start_date}</p>`;
-        if (props.wheelchair) popupContent += `<p><strong>Wheelchair:</strong> ${props.wheelchair}</p>`;
-        if (props.website) popupContent += `<p><a href="${props.website}" target="_blank" rel="noopener noreferrer">Website</a></p>`;
+        // Create marker
+        const marker = L.marker(latlng, { icon: markerIcon, riseOnHover: true });
 
-        // Address block
-        if (
-          props.address &&
-          (props.address.street ||
-            props.address.housenumber ||
-            props.address.postcode ||
-            props.address.city ||
-            props.address.country)
-        ) {
-          const addressParts = [
-            props.address.street && props.address.housenumber
-              ? `${props.address.street} ${props.address.housenumber}`
-              : props.address.street,
-            props.address.postcode,
-            props.address.city,
-            props.address.country,
-          ].filter(Boolean);
-          popupContent += `<p><strong>Address:</strong> ${addressParts.join(', ')}</p>`;
-        }
+        // Instead of popup, handle click to show details in sidebar
+        marker.on('click', () => {
+          if (setSelectedSite) setSelectedSite(props);
+        });
 
-        if (isVisited) {
-          popupContent += `<div style="color:green;font-weight:bold;margin-top:8px;">Visited</div>`;
-        }
+        // Optionally, you can still bind a minimal popup:
+        // marker.bindPopup(`<b>${props.name}</b>`);
 
-        popupContent += `</div>`;
-        return L.marker(latlng, { icon: markerIcon, riseOnHover: true }).bindPopup(popupContent);
+        return marker;
       },
     });
 
@@ -183,7 +196,7 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
     clusterGroup.addTo(mapRef.current);
     clusterLayerRef.current = clusterGroup;
 
-    // Fit bounds to show all markers
+    // Fit bounds to show all markers (only on data change, not theme change)
     try {
       const bounds = clusterGroup.getBounds();
       if (bounds.isValid()) {
@@ -202,7 +215,7 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
         mapRef.current.removeLayer(clusterLayerRef.current);
       }
     };
-  }, [geoJsonData, selectedCoords, visitedSites]);
+  }, [geoJsonData, selectedCoords, visitedSites, setSelectedSite]);
 
   // Pan/zoom to selected marker
   useEffect(() => {
@@ -303,9 +316,65 @@ const Map: React.FC<MapProps> = ({ geoJsonData, selectedCoords, userLocation, se
     );
   };
 
-
+  // --- Category Filter Overlay ---
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      {/* Category filter overlay */}
+      <Paper
+        elevation={4}
+        sx={{
+          position: "absolute",
+          top: 24,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 1201,
+          px: 2,
+          py: 1,
+          borderRadius: 3,
+          background: theme.palette.mode === 'dark' ? "#23232b" : "#fff",
+          boxShadow: '0 2px 12px 0 rgba(0,0,0,0.10)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          minWidth: 200,
+          maxWidth: "90vw",
+          overflowX: "auto"
+        }}
+      >
+        <Stack direction="row" spacing={1} sx={{ width: "100%", overflowX: "auto" }}>
+          <Chip
+            label="All"
+            color={selectedCategory === "" ? "primary" : "default"}
+            onClick={() => setSelectedCategory("")}
+            sx={{
+              fontWeight: 600,
+              minWidth: 64,
+              cursor: 'pointer',
+              borderRadius: 2,
+              boxShadow: selectedCategory === "" ? 2 : 0,
+            }}
+          />
+          {categories.map(cat => (
+            <Chip
+              key={cat}
+              label={cat.charAt(0).toUpperCase() + cat.slice(1)}
+              color={selectedCategory === cat ? "primary" : "default"}
+              onClick={() => setSelectedCategory(cat)}
+              sx={{
+                fontWeight: 600,
+                background: selectedCategory === cat ? CATEGORY_COLORS[cat] : "#f1f5f9",
+                color: selectedCategory === cat ? "#fff" : "#222",
+                minWidth: 64,
+                cursor: 'pointer',
+                borderRadius: 2,
+                boxShadow: selectedCategory === cat ? 2 : 0,
+                transition: "all 0.2s"
+              }}
+            />
+          ))}
+        </Stack>
+      </Paper>
+      {/* Map */}
       <div id="map" style={{ width: "100%", height: "100%" }} />
       <Tooltip title="Go to my location" placement="left">
         <Fab

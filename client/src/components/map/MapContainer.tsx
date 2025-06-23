@@ -1,35 +1,54 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Map from './Map';
 import CulturalSitesList from './CulturalSitesList';
 import {
   Box,
   CircularProgress,
   Alert,
-  Fab,
-  Tooltip,
-  Modal,
-  Fade,
-  Backdrop,
+  useTheme,
+  TextField,
+  InputAdornment,
+  Stack,
+  Paper,
+  Drawer,
+  IconButton,
+  Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
 
-const NAVBAR_HEIGHT = 64; // adjust if your navbar is a different height
+const NAVBAR_HEIGHT = 64;
 
 const MapContainer = () => {
   const [geoJsonData, setGeoJsonData] = useState<any>(null);
   const [selectedCoords, setSelectedCoords] = useState<[number, number] | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>(''); // Pass to Map
+  const [categories, setCategories] = useState<string[]>([]); // Pass to Map
+  const [search, setSearch] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [openModal, setOpenModal] = useState(false);
-  const [fabY, setFabY] = useState(0);
+  const [selectedSite, setSelectedSite] = useState<any | null>(null); // <-- NEW: for details panel
+  const theme = useTheme();
+  const searchRef = useRef<HTMLInputElement>(null);
 
+  // Fetch all categories on mount
+  useEffect(() => {
+    fetch('http://localhost:5000/api/admin/')
+      .then(res => res.json())
+      .then(data => {
+        setCategories(Array.from(new Set(data.map((site: any) => site.category))));
+      });
+  }, []);
+
+  // Fetch geojson data for selected category and search
   useEffect(() => {
     setLoading(true);
-    const url = selectedCategory
-      ? `http://localhost:5000/api/admin?category=${encodeURIComponent(selectedCategory)}`
-      : 'http://localhost:5000/api/admin/';
+    const params = new URLSearchParams();
+    if (selectedCategory) params.append('category', selectedCategory);
+    if (search) params.append('q', search);
+
+    const url = `http://localhost:5000/api/admin/${params.toString() ? '?' + params.toString() : ''}`;
     fetch(url)
       .then(response => {
         if (!response.ok) {
@@ -87,16 +106,39 @@ const MapContainer = () => {
         setError(error.message);
         setLoading(false);
       });
-  }, [selectedCategory]);
+  }, [selectedCategory, search]);
 
-  // Animate the Fab down when modal opens
+  // Focus search on mount for better UX
   useEffect(() => {
-    if (openModal) {
-      setTimeout(() => setFabY(80), 10); // animate down 80px
-    } else {
-      setFabY(0);
+    searchRef.current?.focus();
+  }, []);
+
+  // Helper to get full site info by coordinates (for marker click)
+  const handleMapSiteSelect = (coords: [number, number]) => {
+    setSelectedCoords(coords);
+    // Find the site in geoJsonData
+    if (geoJsonData && geoJsonData.features) {
+      const found = geoJsonData.features.find(
+        (f: any) =>
+          f.geometry.coordinates[1] === coords[0] &&
+          f.geometry.coordinates[0] === coords[1]
+      );
+      if (found) setSelectedSite(found.properties);
     }
-  }, [openModal]);
+  };
+
+  // Helper for list click (also sets details)
+  const handleListSiteSelect = (coords: [number, number]) => {
+    setSelectedCoords(coords);
+    if (geoJsonData && geoJsonData.features) {
+      const found = geoJsonData.features.find(
+        (f: any) =>
+          f.geometry.coordinates[1] === coords[0] &&
+          f.geometry.coordinates[0] === coords[1]
+      );
+      if (found) setSelectedSite(found.properties);
+    }
+  };
 
   return (
     <Box
@@ -108,92 +150,197 @@ const MapContainer = () => {
         m: 0,
         p: 0,
         background: "#f8fafc",
+        display: "flex",
+        flexDirection: "row",
       }}
     >
-      <Map
-        geoJsonData={geoJsonData}
-        selectedCoords={selectedCoords}
-        userLocation={userLocation}
-        setUserLocation={setUserLocation}
-      />
-      {/* Centered Fab */}
-      <Tooltip title="Search Cultural Sites">
-        <Fab
-          color="primary"
-          sx={{
-            position: "absolute",
-            left: "50%",
-            transform: `translate(-50%, ${fabY}px)`,
-            top: 16,
-            zIndex: 1200,
-            width: 56,
-            height: 56,
-            boxShadow: 4,
-            transition: "transform 0.4s cubic-bezier(0.4,0,0.2,1)",
-          }}
-          onClick={() => setOpenModal(true)}
-          aria-label="search-sites"
-        >
-          <SearchIcon fontSize="large" />
-          {loading && (
-            <CircularProgress
-              size={24}
-              color="inherit"
-              sx={{
-                position: "absolute",
-                top: 16,
-                left: 16,
-                zIndex: 1300,
-              }}
-            />
-          )}
-        </Fab>
-      </Tooltip>
-      {/* Modal for CulturalSitesList */}
-      <Modal
-        open={openModal}
-        onClose={() => setOpenModal(false)}
-        closeAfterTransition
-        slots={{ backdrop: Backdrop }}
-        slotProps={{
-          backdrop: {
-            timeout: 300,
-            sx: { backgroundColor: "rgba(30,41,59,0.25)" },
-          },
+      {/* Sidebar with search and list */}
+      <Box
+        sx={{
+          width: { xs: "100vw", sm: 370, md: 400 },
+          maxWidth: 420,
+          minWidth: { sm: 280, md: 340 },
+          height: "100%",
+          zIndex: 1200,
+          background: theme.palette.background.paper,
+          borderRight: { sm: "1px solid #e0e7ef" },
+          boxShadow: { sm: 3 },
+          p: { xs: 1, sm: 2 },
+          overflowY: "auto",
         }}
       >
-        <Fade in={openModal}>
-          <Box
-            sx={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: { xs: "95vw", md: 900 },
-              maxHeight: { xs: "80vh", sm: 600 },
-              bgcolor: "background.paper",
-              borderRadius: 4,
-              boxShadow: 24,
-              p: { xs: 2, sm: 4 },
-              outline: "none",
-              overflowY: "auto",
-            }}
-          >
-            {error ? (
-              <Alert severity="error">{error}</Alert>
-            ) : (
-              <CulturalSitesList
-                onSiteClick={coords => {
-                  setSelectedCoords(coords);
-                  setOpenModal(false);
-                }}
-                selectedCategory={selectedCategory}
-                setSelectedCategory={setSelectedCategory}
-              />
+        {/* Only search bar here */}
+        <Paper
+          elevation={3}
+          sx={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+            background: theme.palette.background.paper,
+            mb: 2,
+            p: 2,
+            borderRadius: 3,
+            boxShadow: '0 2px 12px 0 rgba(0,0,0,0.04)',
+          }}
+        >
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexWrap: 'wrap' }}>
+            <TextField
+              inputRef={searchRef}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name or description..."
+              size="small"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon color="primary" />
+                  </InputAdornment>
+                ),
+                sx: { borderRadius: 2, background: theme.palette.mode === 'dark' ? '#222' : "#f8fafc" }
+              }}
+              variant="outlined"
+              sx={{ minWidth: 220, flex: 1 }}
+            />
+          </Stack>
+        </Paper>
+        {error ? (
+          <Alert severity="error">{error}</Alert>
+        ) : (
+          <>
+            {loading && (
+              <Box display="flex" justifyContent="center" alignItems="center" py={2}>
+                <CircularProgress />
+              </Box>
             )}
+            <CulturalSitesList
+              onSiteClick={handleListSiteSelect}
+              selectedCategory={selectedCategory}
+              setSelectedCategory={setSelectedCategory}
+              search={search}
+              categories={categories}
+              setCategories={setCategories}
+            />
+          </>
+        )}
+      </Box>
+      {/* Map */}
+      <Box sx={{ flex: 1, height: "100%", position: "relative" }}>
+        <Map
+          geoJsonData={geoJsonData}
+          selectedCoords={selectedCoords}
+          userLocation={userLocation}
+          setUserLocation={setUserLocation}
+          themeMode={theme.palette.mode}
+          selectedCategory={selectedCategory}
+          setSelectedCategory={setSelectedCategory}
+          categories={categories}
+          setSelectedSite={setSelectedSite} // <-- pass handler to Map
+        />
+      </Box>
+      {/* Details Drawer */}
+      <Drawer
+        anchor="left"
+        open={!!selectedSite}
+        onClose={() => setSelectedSite(null)}
+        PaperProps={{
+          sx: {
+            width: { xs: "100vw", sm: 350, md: 400 },
+            maxWidth: 420,
+            p: 3,
+            background: theme.palette.background.paper,
+          }
+        }}
+      >
+        {selectedSite && (
+          <Box>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+              <Typography variant="h6" fontWeight={700}>
+                {selectedSite.name}
+              </Typography>
+              <IconButton onClick={() => setSelectedSite(null)}>
+                <CloseIcon />
+              </IconButton>
+            </Stack>
+            <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
+              {selectedSite.category && selectedSite.category.charAt(0).toUpperCase() + selectedSite.category.slice(1)}
+            </Typography>
+            {selectedSite.description && (
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                {selectedSite.description}
+              </Typography>
+            )}
+            {selectedSite.address && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Address:</strong>{" "}
+                {selectedSite.address.street ? selectedSite.address.street + " " : ""}
+                {selectedSite.address.housenumber ? selectedSite.address.housenumber + ", " : ""}
+                {selectedSite.address.postcode ? selectedSite.address.postcode + " " : ""}
+                {selectedSite.address.city ? selectedSite.address.city + ", " : ""}
+                {selectedSite.address.country ? selectedSite.address.country : ""}
+              </Typography>
+            )}
+            {selectedSite.website && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Website:</strong>{" "}
+                <a href={selectedSite.website} target="_blank" rel="noopener noreferrer">
+                  {selectedSite.website}
+                </a>
+              </Typography>
+            )}
+            {selectedSite.operator && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Operator:</strong> {selectedSite.operator}
+              </Typography>
+            )}
+            {selectedSite.opening_hours && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Opening Hours:</strong> {selectedSite.opening_hours}
+              </Typography>
+            )}
+            {selectedSite.fee && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Fee:</strong> {selectedSite.fee}
+              </Typography>
+            )}
+            {selectedSite.cuisine && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Cuisine:</strong> {selectedSite.cuisine}
+              </Typography>
+            )}
+            {selectedSite.phone && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Phone:</strong> {selectedSite.phone}
+              </Typography>
+            )}
+            {selectedSite.artist_name && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Artist:</strong> {selectedSite.artist_name}
+              </Typography>
+            )}
+            {selectedSite.artwork_type && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Artwork Type:</strong> {selectedSite.artwork_type}
+              </Typography>
+            )}
+            {selectedSite.material && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Material:</strong> {selectedSite.material}
+              </Typography>
+            )}
+            {selectedSite.start_date && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Year:</strong> {selectedSite.start_date}
+              </Typography>
+            )}
+            {selectedSite.wheelchair && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Wheelchair:</strong> {selectedSite.wheelchair}
+              </Typography>
+            )}
+            {/* Add more fields as needed */}
           </Box>
-        </Fade>
-      </Modal>
+        )}
+      </Drawer>
     </Box>
   );
 };

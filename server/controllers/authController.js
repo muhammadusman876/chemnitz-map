@@ -1,6 +1,7 @@
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import { generateToken } from "../middleware/authMiddleware.js";
+import path from "path";
 
 // Register a new user
 export const register = async (req, res) => {
@@ -155,5 +156,25 @@ export const updateUser = async (req, res) => {
     res.json(updatedUser);
   } catch (err) {
     res.status(500).json({ message: "Failed to update user.", error: err.message });
+  }
+};
+
+export const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+    // Example: /uploads/filename.png
+    const avatarUrl = `/uploads/${req.file.filename}`;
+
+    // Update user's avatar
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { avatar: avatarUrl },
+      { new: true }
+    ).select("-password");
+
+    res.json({ avatar: user.avatar, message: "Avatar updated" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to upload avatar", error: err.message });
   }
 };

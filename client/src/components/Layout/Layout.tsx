@@ -1,9 +1,13 @@
 import React from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { AppBar, Toolbar, Typography, Button, Box, Container } from "@mui/material";
+import { AppBar, Toolbar, Typography, Button, Box, Container, IconButton } from "@mui/material";
+import Brightness4Icon from "@mui/icons-material/Brightness4";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
+import { useThemeMode } from "../../context/ThemeContext";
 
 const Layout: React.FC = () => {
     const location = useLocation();
+    const { mode, toggleTheme } = useThemeMode();
 
     // Only use Container for non-map pages
     const isMapPage = location.pathname === "/cultureSite";
@@ -47,6 +51,9 @@ const Layout: React.FC = () => {
                     >
                         Register
                     </Button>
+                    <IconButton color="inherit" onClick={toggleTheme} sx={{ ml: 2 }}>
+                        {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
+                    </IconButton>
                 </Toolbar>
             </AppBar>
             <Box sx={{ minHeight: "calc(100vh - 64px)", background: "#f5f6fa", py: isMapPage ? 0 : 4 }}>

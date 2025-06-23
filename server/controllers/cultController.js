@@ -6,7 +6,6 @@ import { getPlaceName } from "../utils/reverse.js";
 import User from "../models/User.js";
 import getDistanceFromLatLonInMeters from "../utils/distanceFromLatLon.js";
 
-
 export const importGeojson = async (req, res) => {
   try {
     const filePath = path.resolve(
@@ -81,6 +80,8 @@ export const getAllSitesForMap = async (req, res) => {
   try {
     // Fetch all sites from the database
     const sites = await CulturalSite.find({});
+    // counte the lenth of sites array object
+    console.log(`Found ${sites.length} cultural sites.`);
     res.json(sites);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -92,7 +93,7 @@ export const checkinToNearbySite = async (req, res) => {
   try {
     // You may want to use authentication middleware to get user id
     const userId = req.user?.id || req.body.userId; // fallback for testing
-    console.log(userId)
+    console.log(userId);
     const { lat, lng } = req.body;
 
     if (typeof lat !== "number" || typeof lng !== "number") {
