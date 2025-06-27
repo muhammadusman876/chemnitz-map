@@ -6,6 +6,8 @@ import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 
 import geojsonRoutes from './routes/cultRoutes.js';
+import userVisitRoutes from './routes/userVisitRoutes.js';
+import districtRoutes from './routes/districtRoutes.js';
 // Load environment variables
 dotenv.config();
 
@@ -28,6 +30,8 @@ app.use(express.json());
 // Routes
 app.use('/api/admin', geojsonRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/progress', userVisitRoutes);
+app.use('/api/districts', districtRoutes);
 
 app.get('/', (req, res) => {
   res.send('API is running');

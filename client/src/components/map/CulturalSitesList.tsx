@@ -27,7 +27,7 @@ interface CulturalSite {
 }
 
 type CulturalSitesListProps = {
-    onSiteClick: React.Dispatch<React.SetStateAction<[number, number] | null>>;
+    onSiteClick: (coords: [number, number]) => void; // <-- change this line
     selectedCategory: string;
     setSelectedCategory: React.Dispatch<React.SetStateAction<string>>;
     search: string;

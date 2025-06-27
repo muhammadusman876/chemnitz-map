@@ -66,7 +66,7 @@ const Map: React.FC<MapProps> = ({
   selectedCategory,
   setSelectedCategory,
   categories,
-  setSelectedSite, // <-- Add this prop
+  setSelectedSite,
 }) => {
   const chemnitzCoordinates: [number, number] = [50.8621274, 12.9677156];
   const mapRef = useRef<L.Map | null>(null);
@@ -152,7 +152,7 @@ const Map: React.FC<MapProps> = ({
       mapRef.current.removeLayer(clusterLayerRef.current);
     }
 
-    // Create cluster group
+    // Sites mode - use marker clustering
     // @ts-ignore
     const clusterGroup = L.markerClusterGroup({
       showCoverageOnHover: false,

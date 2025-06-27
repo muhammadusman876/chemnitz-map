@@ -1,20 +1,39 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
-const AddressSchema = new mongoose.Schema({
-  street: String,
-  housenumber: String,
-  postcode: String,
-  city: String,
-  country: String
-}, { _id: false });
+const AddressSchema = new mongoose.Schema(
+  {
+    street: String,
+    housenumber: String,
+    postcode: String,
+    city: String,
+    country: String,
+  },
+  { _id: false }
+);
 
 const CulturalSiteSchema = new mongoose.Schema({
   name: String,
-  category: String,
+  category: {
+    type: String,
+    required: true,
+    enum: [
+      "artwork",
+      "gallery",
+      "guest_house",
+      "hotel",
+      "museum",
+      "restaurant",
+      "theatre",
+    ], // Add all your categories
+  },
+  district: {
+    type: String,
+    required: true,
+  },
   description: String,
   coordinates: {
     lat: Number,
-    lng: Number
+    lng: Number,
   },
   address: AddressSchema,
   website: String,
@@ -31,8 +50,12 @@ const CulturalSiteSchema = new mongoose.Schema({
   museum: String,
   tourism: String,
   amenity: String,
-  historic: String
+  historic: String,
+  badgeValue: {
+    type: Number,
+    default: 1,
+  },
 });
 
-const CulturalSite = mongoose.model('CulturalSite', CulturalSiteSchema);
+const CulturalSite = mongoose.model("CulturalSite", CulturalSiteSchema);
 export default CulturalSite;

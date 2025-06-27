@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Map from './Map';
 import CulturalSitesList from './CulturalSitesList';
+import DistrictMapView from './DistrictMapView';
 import {
   Box,
   CircularProgress,
@@ -16,6 +17,11 @@ import {
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import MapIcon from '@mui/icons-material/Map';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import axios from 'axios';
 
 const NAVBAR_HEIGHT = 64;
 
@@ -29,6 +35,8 @@ const MapContainer = () => {
   const [error, setError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedSite, setSelectedSite] = useState<any | null>(null); // <-- NEW: for details panel
+  const [viewMode, setViewMode] = useState<'sites' | 'districts'>('sites');
+  const [progressData, setProgressData] = useState<any>(null);
   const theme = useTheme();
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -108,9 +116,41 @@ const MapContainer = () => {
       });
   }, [selectedCategory, search]);
 
+  // Fetch progress data when view mode changes to districts
+  useEffect(() => {
+    if (viewMode === 'districts') {
+      // Fetch user progress data using axios with credentials
+      axios.get('http://localhost:5000/api/progress/progress', {
+        withCredentials: true // For HTTP-only cookies
+      })
+        .then(response => {
+          setProgressData(response.data);
+        })
+        .catch(err => {
+          setProgressData({
+            totalVisits: 0,
+            totalBadges: 0,
+            categoryProgress: [],
+            districtProgress: [],
+            recentVisits: []
+          });
+        });
+    }
+  }, [viewMode]);
+
   // Focus search on mount for better UX
   useEffect(() => {
     searchRef.current?.focus();
+  }, []);
+
+  // Check for preferred mode from Dashboard
+  useEffect(() => {
+    const preferredMode = sessionStorage.getItem('preferredMapMode');
+    if (preferredMode === 'districts') {
+      setViewMode('districts');
+      // Clear the preference
+      sessionStorage.removeItem('preferredMapMode');
+    }
   }, []);
 
   // Helper to get full site info by coordinates (for marker click)
@@ -137,6 +177,59 @@ const MapContainer = () => {
           f.geometry.coordinates[0] === coords[1]
       );
       if (found) setSelectedSite(found.properties);
+    }
+  };
+
+  // Handle district click: fetch sites for the district from backend and show them
+  const handleDistrictClick = async (district: string) => {
+    setSelectedCategory('');
+    setSearch('');
+    setLoading(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/districts/${encodeURIComponent(district)}`);
+      const data = await response.json();
+      // Convert to GeoJSON FeatureCollection if needed
+      const features = data
+        .filter((site: any) => site.coordinates && typeof site.coordinates.lng === 'number' && typeof site.coordinates.lat === 'number')
+        .map((site: any) => ({
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [site.coordinates.lng, site.coordinates.lat]
+          },
+          properties: {
+            _id: site._id,
+            name: site.name,
+            category: site.category,
+            description: site.description,
+            website: site.website,
+            address: site.address,
+            operator: site.operator,
+            opening_hours: site.opening_hours,
+            wheelchair: site.wheelchair,
+            fee: site.fee,
+            cuisine: site.cuisine,
+            phone: site.phone,
+            artist_name: site.artist_name,
+            artwork_type: site.artwork_type,
+            material: site.material,
+            start_date: site.start_date,
+            museum: site.museum,
+            tourism: site.tourism,
+            amenity: site.amenity,
+            historic: site.historic
+          },
+          id: site._id
+        }));
+      setGeoJsonData({
+        type: "FeatureCollection",
+        features
+      });
+      setViewMode('sites');
+    } catch (err) {
+      setError('Failed to load sites for this district');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -169,7 +262,7 @@ const MapContainer = () => {
           overflowY: "auto",
         }}
       >
-        {/* Only search bar here */}
+        {/* Search bar + view toggle */}
         <Paper
           elevation={3}
           sx={{
@@ -202,7 +295,29 @@ const MapContainer = () => {
               sx={{ minWidth: 220, flex: 1 }}
             />
           </Stack>
+
+          {/* View mode toggle */}
+          <Stack direction="row" justifyContent="center" sx={{ pt: 1 }}>
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, newMode) => newMode && setViewMode(newMode)}
+              size="small"
+              color="primary"
+              aria-label="map view mode"
+            >
+              <ToggleButton value="sites" aria-label="sites view">
+                <LocationOnIcon sx={{ mr: 0.5 }} />
+                Sites
+              </ToggleButton>
+              <ToggleButton value="districts" aria-label="districts view">
+                <MapIcon sx={{ mr: 0.5 }} />
+                Districts
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
         </Paper>
+
         {error ? (
           <Alert severity="error">{error}</Alert>
         ) : (
@@ -223,20 +338,30 @@ const MapContainer = () => {
           </>
         )}
       </Box>
+
       {/* Map */}
       <Box sx={{ flex: 1, height: "100%", position: "relative" }}>
-        <Map
-          geoJsonData={geoJsonData}
-          selectedCoords={selectedCoords}
-          userLocation={userLocation}
-          setUserLocation={setUserLocation}
-          themeMode={theme.palette.mode}
-          selectedCategory={selectedCategory}
-          setSelectedCategory={setSelectedCategory}
-          categories={categories}
-          setSelectedSite={setSelectedSite} // <-- pass handler to Map
-        />
+        {viewMode === 'sites' ? (
+          <Map
+            geoJsonData={geoJsonData}
+            selectedCoords={selectedCoords}
+            userLocation={userLocation}
+            setUserLocation={setUserLocation}
+            themeMode={theme.palette.mode}
+            selectedCategory={selectedCategory}
+            setSelectedCategory={setSelectedCategory}
+            categories={categories}
+            setSelectedSite={setSelectedSite}
+          />
+        ) : (
+          <DistrictMapView
+            progressData={progressData}
+            onDistrictClick={handleDistrictClick}
+            themeMode={theme.palette.mode}
+          />
+        )}
       </Box>
+
       {/* Details Drawer */}
       <Drawer
         anchor="left"
