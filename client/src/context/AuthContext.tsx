@@ -10,6 +10,7 @@ interface AuthContextType {
     login: (email: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
     isAuthenticated: boolean;
+    setUser: React.Dispatch<React.SetStateAction<User | null>>; // <-- Add this line
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -107,7 +108,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             register,
             login,
             logout,
-            isAuthenticated
+            isAuthenticated,
+            setUser // <-- Provide setUser in the context
         }}>
             {children}
         </AuthContext.Provider>

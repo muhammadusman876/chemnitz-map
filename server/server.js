@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import connectDB from './config/db.js';
+import path from 'path';
 import authRoutes from './routes/authRoutes.js';
 
 import geojsonRoutes from './routes/cultRoutes.js';
@@ -32,6 +33,8 @@ app.use('/api/admin', geojsonRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/progress', userVisitRoutes);
 app.use('/api/districts', districtRoutes);
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 
 app.get('/', (req, res) => {
   res.send('API is running');

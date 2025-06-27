@@ -36,6 +36,7 @@ import BadgeShowcase from "../components/badges/BadgeShowcase";
 import DistrictMapView from '../components/map/DistrictMapView';
 import { useTheme } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import UserProfileEdit from "../components/profile/UserProfileEdit";
 
 const rankConfig = [
     { min: 0, label: "Explorer", color: "default", icon: <EmojiEventsIcon /> },
@@ -255,41 +256,7 @@ const Dashboard = () => {
         <Box maxWidth="md" mx="auto" mt={4} px={2}>
             {/* User Profile Card */}
             <Card sx={{ mb: 4, p: 2 }}>
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={3} alignItems="center">
-                    <Avatar
-                        src={user.avatar}
-                        alt={user.username}
-                        sx={{ width: 96, height: 96, fontSize: 40, bgcolor: "primary.main" }}
-                    >
-                        {user.username?.[0]?.toUpperCase()}
-                    </Avatar>
-                    <Box flex={1}>
-                        <Typography variant="h4" fontWeight={700}>
-                            {user.username}
-                        </Typography>
-                        <Typography variant="subtitle1" color="text.secondary">
-                            {user.email}
-                        </Typography>
-                        <Stack direction="row" spacing={2} mt={2}>
-                            <Chip
-                                icon={rank.icon}
-                                label={rank.label}
-                                color={rank.color}
-                                sx={{ fontWeight: 600, fontSize: 16 }}
-                            />
-                            <Chip
-                                icon={<LocationOnIcon color="action" />}
-                                label={user.location?.address || "No location set"}
-                                variant="outlined"
-                            />
-                            <Chip
-                                label={user.role === "admin" ? "Admin" : "User"}
-                                color={user.role === "admin" ? "error" : "default"}
-                                variant="outlined"
-                            />
-                        </Stack>
-                    </Box>
-                </Stack>
+                <UserProfileEdit />
             </Card>
 
             {/* Main Content */}
