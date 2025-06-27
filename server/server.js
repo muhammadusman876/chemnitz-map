@@ -4,8 +4,9 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import connectDB from './config/db.js';
 import path from 'path';
-import authRoutes from './routes/authRoutes.js';
 
+import authRoutes from './routes/authRoutes.js';
+import favoriteRoutes from './routes/favoriteRoutes.js';
 import geojsonRoutes from './routes/cultRoutes.js';
 import userVisitRoutes from './routes/userVisitRoutes.js';
 import districtRoutes from './routes/districtRoutes.js';
@@ -34,6 +35,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/progress', userVisitRoutes);
 app.use('/api/districts', districtRoutes);
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+app.use('/api/favorites', favoriteRoutes);
+
 
 
 app.get('/', (req, res) => {

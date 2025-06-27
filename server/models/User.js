@@ -27,6 +27,29 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Method to add a site to favorites
+userSchema.methods.addFavorite = async function (siteId) {
+  // Check if the site is not already in favorites
+  if (!this.favorites.includes(siteId)) {
+    this.favorites.push(siteId);
+    await this.save();
+    return true; // Successfully added
+  }
+  return false; // Already in favorites
+};
+
+// Method to remove a site from favorites
+userSchema.methods.removeFavorite = async function (siteId) {
+  if (this.favorites.includes(siteId)) {
+    this.favorites = this.favorites.filter(
+      (favorite) => favorite.toString() !== siteId.toString()
+    );
+    await this.save();
+    return true; // Successfully removed
+  }
+  return false; // Not in favorites
+};
+
 const User = mongoose.model("User", userSchema);
 
 export default User;

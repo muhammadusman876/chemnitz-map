@@ -50,15 +50,49 @@ export const getSitesByCategory = async (req, res) => {
   try {
     const { category, q } = req.query;
     let filter = {};
+
     if (category) {
       filter.category = category;
     }
+
     if (q) {
+      console.log("Search query:", q);
+      // Get all unique categories from database
+      const allCategories = await CulturalSite.distinct("category");
+
+      // Find categories that match the search query
+      const matchingCategories = allCategories.filter(
+        (cat) => cat && cat.toLowerCase().includes(q.toLowerCase())
+      );
+      console.log("Matching categories:", matchingCategories);
+
+      // Count sites for each matching category
+      for (const cat of matchingCategories) {
+        const count = await CulturalSite.countDocuments({ category: cat });
+        console.log(`Category "${cat}": ${count} sites`);
+      }
+
       filter.$or = [
+        // Search in name and description
         { name: { $regex: q, $options: "i" } },
         { description: { $regex: q, $options: "i" } },
+        // Search in address fields
+        { "address.street": { $regex: q, $options: "i" } },
+        { "address.city": { $regex: q, $options: "i" } },
+        { "address.country": { $regex: q, $options: "i" } },
+        // Search in other text fields
+        { operator: { $regex: q, $options: "i" } },
+        { artist_name: { $regex: q, $options: "i" } },
+        { artwork_type: { $regex: q, $options: "i" } },
+        { material: { $regex: q, $options: "i" } },
+        { cuisine: { $regex: q, $options: "i" } },
+        // Match any of the found categories
+        ...(matchingCategories.length > 0
+          ? [{ category: { $in: matchingCategories } }]
+          : []),
       ];
     }
+
     const sites = await CulturalSite.find(filter);
     res.json(sites);
   } catch (error) {

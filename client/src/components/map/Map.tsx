@@ -357,7 +357,7 @@ const Map: React.FC<MapProps> = ({
           {categories.map(cat => (
             <Chip
               key={cat}
-              label={cat.charAt(0).toUpperCase() + cat.slice(1)}
+              label={cat.charAt(0).toUpperCase() + cat.slice(1).replace(/_/g, ' ')}
               color={selectedCategory === cat ? "primary" : "default"}
               onClick={() => setSelectedCategory(cat)}
               sx={{

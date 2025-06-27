@@ -159,7 +159,7 @@ export const checkInToSite = async (req, res) => {
   }
 };
 
-// Get user's progress
+// In your backend progress controller
 export const getUserProgress = async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -178,12 +178,17 @@ export const getUserProgress = async (req, res) => {
         .json({ message: "No progress found for this user" });
     }
 
+    // Get user with populated favorites
+    const userWithFavorites = await User.findById(userId)
+      .populate('favorites'); // Add this line
+
     return res.json({
       totalVisits: userVisit.visitedSites.length,
       totalBadges: userVisit.totalBadges,
       categoryProgress: userVisit.categoryProgress,
       districtProgress: userVisit.districtProgress,
       recentVisits: userVisit.visitedSites.slice(-5), // Last 5 visits
+      favoriteSites: userWithFavorites?.favorites || [], // Add this line
     });
   } catch (error) {
     console.error("Error getting user progress:", error);
