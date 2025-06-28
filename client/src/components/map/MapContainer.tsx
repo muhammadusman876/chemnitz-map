@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Map from './Map';
 import CulturalSitesList from './CulturalSitesList';
 import DistrictMapView from './DistrictMapView';
@@ -10,16 +10,11 @@ import {
   TextField,
   InputAdornment,
   Stack,
-  Paper,
   Drawer,
   IconButton,
   Typography,
   Button,
-  Menu,
-  MenuItem,
-  Divider,
   Chip
-
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
@@ -32,135 +27,258 @@ import FavoriteIcon from '@mui/icons-material/Favorite';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import PhoneIcon from '@mui/icons-material/Phone';
 import LanguageIcon from '@mui/icons-material/Language';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
 
 import axios from 'axios';
-import { toast } from 'react-hot-toast'; // Add this if you have react-hot-toast
+import { toast } from 'react-hot-toast';
+import { simpleCache } from '../../utils/simpleCache';
 
 const NAVBAR_HEIGHT = 64;
 
 const MapContainer = () => {
   const [geoJsonData, setGeoJsonData] = useState<any>(null);
   const [selectedCoords, setSelectedCoords] = useState<[number, number] | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>(''); // Pass to Map
-  const [categories, setCategories] = useState<string[]>([]); // Pass to Map
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [selectedSite, setSelectedSite] = useState<any | null>(null); // <-- NEW: for details panel
+  const [selectedSite, setSelectedSite] = useState<any | null>(null);
   const [viewMode, setViewMode] = useState<'sites' | 'districts'>('sites');
   const [progressData, setProgressData] = useState<any>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // Track login status
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const theme = useTheme();
   const searchRef = useRef<HTMLInputElement>(null);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [showAllSites, setShowAllSites] = useState(false); // NEW STATE
   const [districtFilter, setDistrictFilter] = useState<string | null>(null);
 
-  // Fetch all categories on mount
+  // Fetch categories with cache
   useEffect(() => {
-    fetch('http://localhost:5000/api/admin/')
-      .then(res => res.json())
-      .then(data => {
-        setCategories(Array.from(new Set(data.map((site: any) => site.category))));
-      });
+    const loadCategories = async () => {
+      // Try cache first
+      let cachedCategories = simpleCache.get('categories');
+      if (cachedCategories && Array.isArray(cachedCategories)) {
+        // Validate that all items are strings
+        const validCategories = cachedCategories.filter((cat): cat is string => typeof cat === 'string');
+        setCategories(validCategories);
+        return;
+      }
+
+      // Cache miss - fetch fresh
+      try {
+        const response = await fetch('http://localhost:5000/api/admin/');
+        const sites = await response.json();
+
+        // Extract categories with proper type checking
+        const categorySet = new Set<string>();
+        sites.forEach((site: any) => {
+          if (site.category && typeof site.category === 'string') {
+            categorySet.add(site.category);
+          }
+        });
+
+        const uniqueCategories = Array.from(categorySet);
+
+        setCategories(uniqueCategories);
+        simpleCache.set('categories', uniqueCategories, 15 * 60 * 1000); // 15 minutes cache
+        simpleCache.set('all-sites', sites, 10 * 60 * 1000); // 10 minutes cache for sites
+        ('💾 Cached categories and sites - Categories:', uniqueCategories.length);
+      } catch (error) {
+        console.error('❌ Failed to load categories:', error);
+        setCategories([]); // Fallback to empty array
+      }
+    };
+
+    loadCategories();
   }, []);
 
-  // Fetch geojson data for selected category and search
+  // Fetch sites with cache and filtering - FIXED: Handle district filtering properly
   useEffect(() => {
-    // Only fetch all sites if not filtering by district
-    if (districtFilter) return;
+    const loadSites = async () => {
+      setLoading(true);
 
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (selectedCategory) params.append('category', selectedCategory);
-    if (search) params.append('q', search);
+      try {
+        // If district filter is active, load district-specific data
+        if (districtFilter) {
+          ('🔍 Loading district:', districtFilter);
 
-    // Always fetch, even if no search/category (fetch all)
-    const url = `http://localhost:5000/api/admin/${params.toString() ? '?' + params.toString() : ''}`;
+          // Try cache first for district data
+          const cacheKey = `district-${districtFilter}`;
+          let districtSites = simpleCache.get(cacheKey);
 
-    fetch(url)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Failed to load GeoJSON data');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Convert array of sites to GeoJSON FeatureCollection
-        const features = data
-          .filter(
-            (site: any) =>
+          if (districtSites) {
+            ('✅ Using cached district data for:', districtFilter);
+          } else {
+            ('🔄 Fetching fresh district data for:', districtFilter);
+
+            try {
+              // Cache miss - fetch fresh district data
+              const response = await fetch(`http://localhost:5000/api/districts/${encodeURIComponent(districtFilter)}`);
+
+              if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+              }
+
+              districtSites = await response.json();
+
+              // Only cache if we got valid data
+              if (districtSites && Array.isArray(districtSites)) {
+                simpleCache.set(cacheKey, districtSites, 10 * 60 * 1000); // 10 minutes cache for districts
+                ('💾 Cached district data for:', districtFilter, '- Sites count:', districtSites.length);
+              } else {
+                console.warn('⚠️ Invalid district data received:', districtSites);
+                districtSites = []; // Fallback to empty array
+              }
+            } catch (fetchError) {
+              console.error('❌ Failed to fetch district data:', fetchError);
+
+              // Try to get from all-sites cache as fallback
+              ('🔄 Trying fallback: filtering from all-sites cache');
+              let allSites = simpleCache.get('all-sites');
+
+              if (!allSites) {
+                const allSitesResponse = await fetch('http://localhost:5000/api/admin/');
+                allSites = await allSitesResponse.json();
+                simpleCache.set('all-sites', allSites);
+              }
+
+              // Filter by district from all sites
+              districtSites = allSites.filter((site: any) =>
+                site.address &&
+                site.address.city &&
+                site.address.city.toLowerCase().includes(districtFilter.toLowerCase())
+              );
+
+              // Cache the filtered result
+              simpleCache.set(cacheKey, districtSites, 10 * 60 * 1000);
+              ('💾 Cached fallback district data for:', districtFilter, '- Sites count:', districtSites.length);
+            }
+          }
+
+          // Apply search filter if active (but NOT category filter for district view)
+          let filteredSites = districtSites;
+          if (search) {
+            filteredSites = districtSites.filter((site: any) =>
+              site.name.toLowerCase().includes(search.toLowerCase()) ||
+              site.description?.toLowerCase().includes(search.toLowerCase())
+            );
+          }
+
+          // Convert to GeoJSON
+          const features = filteredSites
+            .filter((site: any) =>
               site.coordinates &&
               typeof site.coordinates.lng === 'number' &&
               typeof site.coordinates.lat === 'number'
-          )
-          .map((site: any) => ({
-            type: "Feature",
-            geometry: {
-              type: "Point",
-              coordinates: [site.coordinates.lng, site.coordinates.lat]
-            },
-            properties: {
-              _id: site._id,
-              name: site.name,
-              category: site.category,
-              description: site.description,
-              website: site.website,
-              address: site.address,
-              operator: site.operator,
-              opening_hours: site.opening_hours,
-              wheelchair: site.wheelchair,
-              fee: site.fee,
-              cuisine: site.cuisine,
-              phone: site.phone,
-              artist_name: site.artist_name,
-              artwork_type: site.artwork_type,
-              material: site.material,
-              start_date: site.start_date,
-              museum: site.museum,
-              tourism: site.tourism,
-              amenity: site.amenity,
-              historic: site.historic
-            },
-            id: site._id
-          }));
-        setGeoJsonData({
-          type: "FeatureCollection",
-          features
-        });
+            )
+            .map((site: any) => ({
+              type: "Feature",
+              geometry: {
+                type: "Point",
+                coordinates: [site.coordinates.lng, site.coordinates.lat]
+              },
+              properties: { ...site },
+              id: site._id
+            }));
+
+          setGeoJsonData({
+            type: "FeatureCollection",
+            features
+          });
+        } else {
+          // Regular all-sites loading with category and search filtering
+          let allSites = simpleCache.get('all-sites');
+
+          // If no cache, fetch fresh
+          if (!allSites) {
+            ('🔄 Fetching fresh all-sites data');
+            const response = await fetch('http://localhost:5000/api/admin/');
+            allSites = await response.json();
+            simpleCache.set('all-sites', allSites, 10 * 60 * 1000); // 10 minutes cache
+            ('💾 Cached all-sites data - Count:', allSites.length);
+          } else {
+            ('✅ Using cached all-sites data');
+          }
+
+          // Filter locally instead of API calls
+          let filteredSites = allSites;
+
+          if (selectedCategory) {
+            filteredSites = allSites.filter((site: any) =>
+              site.category === selectedCategory
+            );
+          }
+
+          if (search) {
+            filteredSites = filteredSites.filter((site: any) =>
+              site.name.toLowerCase().includes(search.toLowerCase()) ||
+              site.description?.toLowerCase().includes(search.toLowerCase())
+            );
+          }
+
+          // Convert to GeoJSON
+          const features = filteredSites
+            .filter((site: any) =>
+              site.coordinates &&
+              typeof site.coordinates.lng === 'number' &&
+              typeof site.coordinates.lat === 'number'
+            )
+            .map((site: any) => ({
+              type: "Feature",
+              geometry: {
+                type: "Point",
+                coordinates: [site.coordinates.lng, site.coordinates.lat]
+              },
+              properties: { ...site },
+              id: site._id
+            }));
+
+          setGeoJsonData({
+            type: "FeatureCollection",
+            features
+          });
+        }
+
+      } catch (error) {
+        console.error('❌ Error loading sites:', error);
+        setError('Failed to load sites');
+      } finally {
         setLoading(false);
-      })
-      .catch(error => {
-        console.error("Error loading GeoJSON data:", error);
-        setError(error.message);
-        setLoading(false);
-      });
-  }, [selectedCategory, search, viewMode, districtFilter]);
+      }
+    };
+
+    loadSites();
+  }, [selectedCategory, search, districtFilter]); // Added districtFilter to dependencies
 
   // Fetch progress data when view mode changes to districts
   useEffect(() => {
     if (viewMode === 'districts') {
-      // Fetch user progress data using axios with credentials
+      // Try cache first for progress data
+      let cachedProgress = simpleCache.get('user-progress');
+      if (cachedProgress) {
+        setProgressData(cachedProgress);
+        return;
+      }
+
+      // Cache miss - fetch fresh progress data
       axios.get('http://localhost:5000/api/progress/progress', {
-        withCredentials: true // For HTTP-only cookies
+        withCredentials: true
       })
         .then(response => {
           setProgressData(response.data);
+          simpleCache.set('user-progress', response.data, 2 * 60 * 1000); // 2 minutes cache for progress
         })
         .catch(err => {
-          setProgressData({
+          const defaultProgress = {
             totalVisits: 0,
             totalBadges: 0,
             categoryProgress: [],
             districtProgress: [],
             recentVisits: []
-          });
+          };
+          setProgressData(defaultProgress);
         });
     }
   }, [viewMode]);
@@ -175,105 +293,35 @@ const MapContainer = () => {
     const preferredMode = sessionStorage.getItem('preferredMapMode');
     if (preferredMode === 'districts') {
       setViewMode('districts');
-      // Clear the preference
       sessionStorage.removeItem('preferredMapMode');
     }
   }, []);
 
   // Check authentication status and fetch favorites on component mount
   useEffect(() => {
-    // Directly fetch favorites - the API will return unauthorized if not logged in
+    // Try cache first for favorites
+    let cachedFavorites = simpleCache.get('user-favorites');
+    if (cachedFavorites) {
+      setFavorites(cachedFavorites);
+      setIsLoggedIn(true);
+      return;
+    }
+
+    // Cache miss - fetch fresh favorites
     axios.get('http://localhost:5000/api/favorites', { withCredentials: true })
       .then(response => {
-        // User is logged in if we get a successful response
         setIsLoggedIn(true);
-
-        // Extract favorite IDs
         const favoriteIds = response.data.map((site: any) => site._id);
         setFavorites(favoriteIds);
+        simpleCache.set('user-favorites', favoriteIds, 3 * 60 * 1000); // 3 minutes cache for favorites
       })
       .catch(error => {
-        // User is not logged in or there was an error
-        console.log("Could not fetch favorites:", error.message);
+        ("Could not fetch favorites:", error.message);
         setIsLoggedIn(false);
       });
   }, []);
 
-  // Fetch geojson data for a specific district
-  const fetchDistrictData = async (district: string) => {
-    setLoading(true);
-    try {
-      const response = await fetch(`http://localhost:5000/api/districts/${encodeURIComponent(district)}`);
-      const data = await response.json();
-      // Convert to GeoJSON FeatureCollection if needed
-      const features = data
-        .filter((site: any) => site.coordinates && typeof site.coordinates.lng === 'number' && typeof site.coordinates.lat === 'number')
-        .map((site: any) => ({
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: [site.coordinates.lng, site.coordinates.lat]
-          },
-          properties: {
-            _id: site._id,
-            name: site.name,
-            category: site.category,
-            description: site.description,
-            website: site.website,
-            address: site.address,
-            operator: site.operator,
-            opening_hours: site.opening_hours,
-            wheelchair: site.wheelchair,
-            fee: site.fee,
-            cuisine: site.cuisine,
-            phone: site.phone,
-            artist_name: site.artist_name,
-            artwork_type: site.artwork_type,
-            material: site.material,
-            start_date: site.start_date,
-            museum: site.museum,
-            tourism: site.tourism,
-            amenity: site.amenity,
-            historic: site.historic
-          },
-          id: site._id
-        }));
-      setGeoJsonData({
-        type: "FeatureCollection",
-        features
-      });
-      setViewMode('sites');
-    } catch (err) {
-      setError('Failed to load sites for this district');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  // Fetch district data when view mode changes to districts
-  useEffect(() => {
-    if (viewMode === 'districts' && geoJsonData && geoJsonData.features) {
-      // Extract the district name from the first feature's properties
-      const districtName = geoJsonData.features[0].properties.district;
-      if (districtName) {
-        fetchDistrictData(districtName);
-      }
-    }
-  }, [viewMode, geoJsonData]);
-
-  // Helper to get full site info by coordinates (for marker click)
-  const handleMapSiteSelect = (coords: [number, number]) => {
-    setSelectedCoords(coords);
-    // Find the site in geoJsonData
-    if (geoJsonData && geoJsonData.features) {
-      const found = geoJsonData.features.find(
-        (f: any) =>
-          f.geometry.coordinates[1] === coords[0] &&
-          f.geometry.coordinates[0] === coords[1]
-      );
-      if (found) setSelectedSite(found.properties);
-    }
-  };
 
   // Helper for list click (also sets details)
   const handleListSiteSelect = (coords: [number, number]) => {
@@ -288,60 +336,22 @@ const MapContainer = () => {
     }
   };
 
-  // Handle district click: fetch sites for the district from backend and show them
+  // FIXED: Handle district click properly - clear filters and set district
   const handleDistrictClick = async (district: string) => {
+    ('🏛️ District clicked:', district);
+
+    // Clear all filters first
     setSelectedCategory('');
     setSearch('');
-    setDistrictFilter(district); // <-- set district filter
-    setLoading(true);
-    try {
-      const response = await fetch(`http://localhost:5000/api/districts/${encodeURIComponent(district)}`);
-      const data = await response.json();
-      const features = data
-        .filter((site: any) => site.coordinates && typeof site.coordinates.lng === 'number' && typeof site.coordinates.lat === 'number')
-        .map((site: any) => ({
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: [site.coordinates.lng, site.coordinates.lat]
-          },
-          properties: {
-            _id: site._id,
-            name: site.name,
-            category: site.category,
-            description: site.description,
-            website: site.website,
-            address: site.address,
-            operator: site.operator,
-            opening_hours: site.opening_hours,
-            wheelchair: site.wheelchair,
-            fee: site.fee,
-            cuisine: site.cuisine,
-            phone: site.phone,
-            artist_name: site.artist_name,
-            artwork_type: site.artwork_type,
-            material: site.material,
-            start_date: site.start_date,
-            museum: site.museum,
-            tourism: site.tourism,
-            amenity: site.amenity,
-            historic: site.historic
-          },
-          id: site._id
-        }));
-      setGeoJsonData({
-        type: "FeatureCollection",
-        features
-      });
-      setViewMode('sites');
-    } catch (err) {
-      setError('Failed to load sites for this district');
-    } finally {
-      setLoading(false);
-    }
+
+    // Set district filter to load district-specific sites
+    setDistrictFilter(district);
+
+    // Switch to sites view to show the district's sites
+    setViewMode('sites');
   };
 
-  // Add a "Show All Sites" button handler to clear the district filter:
+  // Add a "Show All Sites" button handler to clear the district filter
   const handleShowAllSites = () => {
     setDistrictFilter(null);
     setSelectedCategory('');
@@ -357,7 +367,9 @@ const MapContainer = () => {
 
     try {
       await axios.post('http://localhost:5000/api/favorites/add', { siteId }, { withCredentials: true });
-      setFavorites(prev => [...prev, siteId]);
+      const updatedFavorites = [...favorites, siteId];
+      setFavorites(updatedFavorites);
+      simpleCache.set('user-favorites', updatedFavorites, 3 * 60 * 1000); // Update cache
       toast ? toast.success('Added to favorites') : alert('Added to favorites');
     } catch (error) {
       console.error('Error adding favorite:', error);
@@ -369,7 +381,9 @@ const MapContainer = () => {
   const removeFromFavorites = async (siteId: string) => {
     try {
       await axios.delete(`http://localhost:5000/api/favorites/remove/${siteId}`, { withCredentials: true });
-      setFavorites(prev => prev.filter(id => id !== siteId));
+      const updatedFavorites = favorites.filter(id => id !== siteId);
+      setFavorites(updatedFavorites);
+      simpleCache.set('user-favorites', updatedFavorites, 3 * 60 * 1000); // Update cache
       toast ? toast.success('Removed from favorites') : alert('Removed from favorites');
     } catch (error) {
       console.error('Error removing favorite:', error);
@@ -406,7 +420,7 @@ const MapContainer = () => {
           borderRight: { sm: "1px solid #e0e7ef" },
           boxShadow: { sm: 3 },
           display: "flex",
-          flexDirection: "column", // Important for fixed header + scrolling content
+          flexDirection: "column",
         }}
       >
         {/* Fixed Header - Always Visible */}
@@ -494,9 +508,7 @@ const MapContainer = () => {
           </ToggleButtonGroup>
         </Box>
 
-
-
-        {/* Status Bar - Fixed */}
+        {/* Status Bar - Fixed - UPDATED to show district info */}
         <Box
           sx={{
             px: 3,
@@ -514,20 +526,29 @@ const MapContainer = () => {
             <strong>{geoJsonData?.features?.length || 0}</strong> sites found
           </Typography>
 
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            {geoJsonData?.features?.length > 0 && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {districtFilter && (
+              <Chip
+                label={`${districtFilter} District`}
+                size="small"
+                color="secondary"
+                variant="filled"
+                onDelete={() => handleShowAllSites()}
+                sx={{ height: 24 }}
+              />
+            )}
+
+            {geoJsonData?.features?.length > 0 && !districtFilter && (
               <Chip
                 label={selectedCategory ?
                   `Showing ${selectedCategory.replace(/_/g, ' ')}` :
                   (search ? 'Search results' : 'All sites')}
                 size="small"
-                color={search || selectedCategory || showAllSites ? "primary" : "default"}
+                color={search || selectedCategory ? "primary" : "default"}
                 variant="outlined"
-                sx={{ height: 24, mr: 1 }}
+                sx={{ height: 24 }}
               />
             )}
-
-
           </Box>
         </Box>
 
@@ -552,11 +573,10 @@ const MapContainer = () => {
             </Box>
           ) : (
             <>
-              {/* Show the initial state only when no search, no category, AND no district data */}
-              {!search && !selectedCategory && (!geoJsonData || geoJsonData.features.length === 0) ? (
+              {/* Show the initial state only when no search, no category, no district AND no data */}
+              {!search && !selectedCategory && !districtFilter && (!geoJsonData || geoJsonData.features.length === 0) ? (
                 // Initial state - no search/filter applied
                 <Box sx={{ py: 6, textAlign: 'center', px: 2 }}>
-
                   <Typography variant="h6" color="text.secondary" gutterBottom>
                     Search for cultural sites
                   </Typography>
@@ -578,7 +598,6 @@ const MapContainer = () => {
                     ))}
                   </Box>
 
-                  {/* Add this button */}
                   <Button
                     variant="contained"
                     onClick={handleShowAllSites}
@@ -598,12 +617,20 @@ const MapContainer = () => {
                   <Typography variant="body2" color="text.secondary">
                     Try changing your search or filter criteria
                   </Typography>
-                  <Button sx={{ mt: 2 }} startIcon={<RefreshIcon />} onClick={() => { setSearch(''); setSelectedCategory(''); }}>
+                  <Button
+                    sx={{ mt: 2 }}
+                    startIcon={<RefreshIcon />}
+                    onClick={() => {
+                      setSearch('');
+                      setSelectedCategory('');
+                      setDistrictFilter(null);
+                    }}
+                  >
                     Reset filters
                   </Button>
                 </Box>
               ) : (
-                // Show sites - search results OR district sites
+                // Show sites - search results OR district sites OR category filtered sites
                 <Box sx={{ py: 1 }}>
                   {geoJsonData?.features?.length > 100 && (
                     <Box sx={{ mb: 2, p: 2, bgcolor: 'info.light', borderRadius: 2 }}>
@@ -615,12 +642,12 @@ const MapContainer = () => {
                   <CulturalSitesList
                     sites={geoJsonData?.features || []}
                     onSiteClick={handleListSiteSelect}
-                    selectedCategory={selectedCategory}
+                    selectedCategory={districtFilter ? '' : selectedCategory} // Don't pass category when viewing district
                     setSelectedCategory={setSelectedCategory}
                     search={search}
                     categories={categories}
                     setCategories={setCategories}
-                    paginationLimit={6} // <-- limit to 6
+                    paginationLimit={12} // Increased from 6 to 12
                   />
                 </Box>
               )}
@@ -652,7 +679,7 @@ const MapContainer = () => {
         )}
       </Box>
 
-      {/* Details Drawer */}
+      {/* Details Drawer - Rest of component stays the same */}
       <Drawer
         anchor="left"
         open={!!selectedSite}

@@ -34,7 +34,7 @@ export const importGeojson = async (req, res) => {
     const docs = geojson.features
       .filter((f) => f.geometry && f.properties)
       .map(geojsonToMongoDoc);
-    console.log(docs); // <-- Add this
+    docs; // <-- Add this
 
     await CulturalSite.insertMany(docs);
     res
@@ -56,7 +56,7 @@ export const getSitesByCategory = async (req, res) => {
     }
 
     if (q) {
-      console.log("Search query:", q);
+      "Search query:", q;
       // Get all unique categories from database
       const allCategories = await CulturalSite.distinct("category");
 
@@ -64,12 +64,10 @@ export const getSitesByCategory = async (req, res) => {
       const matchingCategories = allCategories.filter(
         (cat) => cat && cat.toLowerCase().includes(q.toLowerCase())
       );
-      console.log("Matching categories:", matchingCategories);
 
       // Count sites for each matching category
       for (const cat of matchingCategories) {
         const count = await CulturalSite.countDocuments({ category: cat });
-        console.log(`Category "${cat}": ${count} sites`);
       }
 
       filter.$or = [
@@ -115,7 +113,6 @@ export const getAllSitesForMap = async (req, res) => {
     // Fetch all sites from the database
     const sites = await CulturalSite.find({});
     // counte the lenth of sites array object
-    console.log(`Found ${sites.length} cultural sites.`);
     res.json(sites);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -127,7 +124,7 @@ export const checkinToNearbySite = async (req, res) => {
   try {
     // You may want to use authentication middleware to get user id
     const userId = req.user?.id || req.body.userId; // fallback for testing
-    console.log(userId);
+    userId;
     const { lat, lng } = req.body;
 
     if (typeof lat !== "number" || typeof lng !== "number") {
@@ -170,5 +167,35 @@ export const checkinToNearbySite = async (req, res) => {
     res.json({ message: "Checked in!", site: checkedInSite });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+// Add this function after your existing functions
+
+export const deleteAllSites = async (req, res) => {
+  try {
+    
+    const result = await CulturalSite.deleteMany({});
+
+    res.json({
+      message: `Successfully deleted ${result.deletedCount} cultural sites`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error("❌ Delete failed:", error);
+    res.status(500).json({
+      error: "Failed to delete cultural sites: " + error.message,
+    });
+  }
+};
+
+// Optional: Get total count for admin dashboard
+export const getSitesCount = async (req, res) => {
+  try {
+    const count = await CulturalSite.countDocuments();
+    res.json({ count });
+  } catch (error) {
+    console.error("Error counting sites:", error);
+    res.status(500).json({ error: "Failed to count cultural sites" });
   }
 };

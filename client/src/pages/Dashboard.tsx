@@ -7,8 +7,7 @@ import {
     Stack,
     Card,
     CardContent,
-    Grid,
-    Divider,
+    Grid, // Use Grid2 for better TypeScript support
     CircularProgress,
     LinearProgress,
     List,
@@ -27,19 +26,22 @@ import {
 } from "@mui/material";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
-import ExploreIcon from '@mui/icons-material/Explore';
 import PlaceIcon from '@mui/icons-material/Place';
 import CategoryIcon from '@mui/icons-material/Category';
 import MapIcon from '@mui/icons-material/Map';
 import CloseIcon from '@mui/icons-material/Close';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import StarIcon from '@mui/icons-material/Star';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import DeleteIcon from '@mui/icons-material/Delete';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import DatasetIcon from '@mui/icons-material/Dataset';
 import { useAuth } from "../hooks/useAuth";
 import axios from "axios";
 import BadgeShowcase from "../components/badges/BadgeShowcase";
-import DistrictMapView from '../components/map/DistrictMapView';
 import { useNavigate } from 'react-router-dom';
 import UserProfileEdit from "../components/profile/UserProfileEdit";
+import { simpleCache } from "../utils/simpleCache";
 
 const rankConfig = [
     { min: 0, label: "Explorer", color: "#64748b", icon: <EmojiEventsIcon />, gradient: "linear-gradient(135deg, #64748b 0%, #94a3b8 100%)" },
@@ -83,7 +85,7 @@ interface ProgressData {
         visitDate: string;
         _id?: string;
     }>;
-    favoriteSites: Array<SiteData>; // Add this line
+    favoriteSites: Array<SiteData>;
 }
 
 interface DistrictData {
@@ -108,7 +110,6 @@ interface SiteData {
 const Dashboard = () => {
     const { user } = useAuth();
     const theme = useTheme();
-    const navigate = useNavigate();
 
     const [loading, setLoading] = useState(true);
     const [progressData, setProgressData] = useState<ProgressData | null>(null);
@@ -121,79 +122,424 @@ const Dashboard = () => {
     const [favoritesDialogOpen, setFavoritesDialogOpen] = useState(false);
     const [favoriteSites, setFavoriteSites] = useState<SiteData[]>([]);
     const [favoritesLoading, setFavoritesLoading] = useState(false);
+    const [districtProgressLoading, setDistrictProgressLoading] = useState(false);
+    const [districtProgressData, setDistrictProgressData] = useState<any[]>([]);
+    const [adminLoading, setAdminLoading] = useState(false);
+    const [importGeojsonLoading, setImportGeojsonLoading] = useState(false);
+    const [importDistrictsLoading, setImportDistrictsLoading] = useState(false);
+    const [deleteLoading, setDeleteLoading] = useState(false);
+    const [importStatus, setImportStatus] = useState<string | null>(null);
+    const [deleteStatus, setDeleteStatus] = useState<string | null>(null);
 
-    // Fetch user progress
+    // Fetch user progress with caching
     useEffect(() => {
         const fetchProgress = async () => {
+            if (!user) return;
+
             try {
                 setLoading(true);
+                setError(null); // Clear previous errors
+
+                // Try cache first
+                const cacheKey = `dashboard-progress-${user.id || (user as any)._id}`;
+                let cachedProgress = simpleCache.get(cacheKey);
+
+                if (cachedProgress) {
+                    ('✅ Using cached dashboard progress');
+                    setProgressData(cachedProgress);
+                    setLoading(false);
+                    return;
+                }
+
+                ('🔄 Fetching fresh dashboard progress');
                 const response = await axios.get('http://localhost:5000/api/progress/progress', {
                     withCredentials: true
                 });
-                setProgressData(response.data);
-                setError(null);
+
+                // Add safety checks for the response data
+                const progressData = response.data || {
+                    totalVisits: 0,
+                    totalBadges: 0,
+                    categoryProgress: [],
+                    districtProgress: [],
+                    recentVisits: [],
+                    favoriteSites: []
+                };
+
+                setProgressData(progressData);
+                simpleCache.set(cacheKey, progressData, 3 * 60 * 1000);
+                ('💾 Cached dashboard progress');
+
             } catch (err) {
                 console.error('Failed to fetch progress data:', err);
                 setError('Failed to load your exploration progress');
+
+                // Set empty progress data to prevent crashes
+                setProgressData({
+                    totalVisits: 0,
+                    totalBadges: 0,
+                    categoryProgress: [],
+                    districtProgress: [],
+                    recentVisits: [],
+                    favoriteSites: []
+                });
             } finally {
                 setLoading(false);
             }
         };
 
-        if (user) {
-            fetchProgress();
-        }
+        fetchProgress();
     }, [user]);
 
-    // Fetch all districts
+    // Fetch all districts with caching
     useEffect(() => {
         const fetchDistricts = async () => {
             try {
+                let cachedDistricts = simpleCache.get('districts-list');
+
+                if (cachedDistricts) {
+                    ('✅ Using cached districts list');
+                    setDistricts(Array.isArray(cachedDistricts) ? cachedDistricts : []);
+                    return;
+                }
+
+                ('🔄 Fetching fresh districts list');
                 const response = await axios.get('http://localhost:5000/api/districts/list');
-                setDistricts(response.data);
+
+                const districts = Array.isArray(response.data) ? response.data : [];
+                setDistricts(districts);
+                simpleCache.set('districts-list', districts, 15 * 60 * 1000);
+                ('💾 Cached districts list');
+
             } catch (err) {
                 console.error('Failed to fetch districts:', err);
+                setDistricts([]); // Set empty array to prevent crashes
             }
         };
 
         fetchDistricts();
     }, []);
 
-    // Fetch sites for a specific district when selected
+    // Fetch sites for a specific district when selected with caching
     const handleDistrictClick = async (districtName: string) => {
         try {
             setSelectedDistrict(districtName);
+
+            // Try cache first
+            const cacheKey = `district-sites-${districtName}`;
+            let cachedDistrictSites = simpleCache.get(cacheKey);
+
+            if (cachedDistrictSites) {
+                ('✅ Using cached district sites for:', districtName);
+                setDistrictSites(cachedDistrictSites);
+                setDialogOpen(true);
+                return;
+            }
+
+            ('🔄 Fetching fresh district sites for:', districtName);
             const response = await axios.get(`http://localhost:5000/api/districts/${encodeURIComponent(districtName)}`);
+
             setDistrictSites(response.data);
             setDialogOpen(true);
+
+            // Cache for 10 minutes
+            simpleCache.set(cacheKey, response.data, 10 * 60 * 1000);
+            ('💾 Cached district sites for:', districtName);
+
         } catch (err) {
             console.error(`Failed to fetch sites for district ${districtName}:`, err);
         }
     };
 
-    const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
         setTabValue(newValue);
     };
 
-    const openDistrictMap = () => {
-        // Store a preference in sessionStorage that MapContainer should open in district mode
-        sessionStorage.setItem('preferredMapMode', 'districts');
-        navigate('/map');
-    };
+    // Fetch favorite sites details with caching
+    const handleFavoritesClick = async () => {
+        ('Favorites clicked, favorite sites:', progressData?.favoriteSites);
 
-    // Fetch favorite sites details
-    const handleFavoritesClick = () => {
-        console.log('Favorites clicked, favorite sites:', progressData?.favoriteSites); // Debug log
+        if (!user) {
+            ('No user, cannot fetch favorites');
+            return;
+        }
 
-        if (!progressData?.favoriteSites?.length) {
-            console.log('No favorites found, opening empty dialog');
+        // Check if we already have favorites data in progressData
+        if (progressData?.favoriteSites?.length) {
+            ('✅ Using favorites from progress data');
+            setFavoriteSites(progressData.favoriteSites);
             setFavoritesDialogOpen(true);
             return;
         }
 
-        // Use the favorite sites from progress data
-        setFavoriteSites(progressData.favoriteSites);
+        // Try cache first - fix user ID access
+        const cacheKey = `user-favorites-${user.id || (user as any)._id}`;
+        let cachedFavorites = simpleCache.get(cacheKey);
+
+        if (cachedFavorites) {
+            ('✅ Using cached favorites');
+            setFavoriteSites(cachedFavorites);
+            setFavoritesDialogOpen(true);
+            return;
+        }
+
+        // If no cached data and no favorites in progressData, fetch fresh
+        try {
+            setFavoritesLoading(true);
+            ('🔄 Fetching fresh favorites');
+
+            const response = await axios.get('http://localhost:5000/api/favorites', {
+                withCredentials: true
+            });
+
+            setFavoriteSites(response.data);
+
+            // Cache for 5 minutes (favorites change moderately often)
+            simpleCache.set(cacheKey, response.data, 5 * 60 * 1000);
+            ('💾 Cached favorites');
+
+        } catch (error) {
+            console.error('Failed to fetch favorites:', error);
+            setFavoriteSites([]);
+        } finally {
+            setFavoritesLoading(false);
+        }
+
         setFavoritesDialogOpen(true);
+    };
+
+    // Calculate district progress
+    useEffect(() => {
+        const calculateDistrictProgress = async () => {
+            // Don't calculate if we don't have the required data
+            if (!districts || !Array.isArray(districts) || districts.length === 0 || !progressData) {
+                setDistrictProgressData([]);
+                setDistrictProgressLoading(false);
+                return;
+            }
+
+            setDistrictProgressLoading(true);
+
+            try {
+                const cacheKey = `district-progress-${user?.id || (user as any)?._id}-${districts.length}-${progressData.totalVisits}`;
+                let cachedDistrictProgress = simpleCache.get(cacheKey);
+
+                if (cachedDistrictProgress && Array.isArray(cachedDistrictProgress)) {
+                    ('✅ Using cached district progress');
+                    setDistrictProgressData(cachedDistrictProgress);
+                    setDistrictProgressLoading(false);
+                    return;
+                }
+
+                ('🔄 Calculating fresh district progress');
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                const calculatedProgress = districts.map(district => {
+                    if (!district || !district.name) {
+                        return {
+                            name: "Unknown District",
+                            visitedCount: 0,
+                            totalSites: 0,
+                            completed: false,
+                            percentage: 0
+                        };
+                    }
+
+                    const userDistrictProgress = progressData?.districtProgress?.find(
+                        d => d && d.district === district.name
+                    );
+
+                    let visitedCount = 0;
+
+                    if (userDistrictProgress?.visitedSites && Array.isArray(userDistrictProgress.visitedSites)) {
+                        visitedCount = userDistrictProgress.visitedSites.length;
+                    } else {
+                        // Count from recent visits
+                        const visitedSitesInDistrict = progressData?.recentVisits?.filter(
+                            visit => visit && visit.site && visit.site.district === district.name
+                        )?.length || 0;
+
+                        // Count from category progress
+                        const visitedFromCategories = progressData?.categoryProgress?.reduce((count, category) => {
+                            if (!category || !Array.isArray(category.visitedSites)) return count;
+
+                            const sitesByDistrict = category.visitedSites.filter((site: any) => {
+                                if (!site) return false;
+                                return (site.district === district.name) ||
+                                    (site.district && site.district === district.name);
+                            });
+
+                            return count + sitesByDistrict.length;
+                        }, 0) || 0;
+
+                        visitedCount = Math.max(visitedSitesInDistrict, visitedFromCategories);
+                    }
+
+                    const totalSites = userDistrictProgress?.totalSites || district.siteCount || 0;
+                    const completed = userDistrictProgress?.completed || (totalSites > 0 && visitedCount >= totalSites);
+
+                    return {
+                        name: district.name,
+                        visitedCount,
+                        totalSites,
+                        completed,
+                        percentage: totalSites > 0 ? (visitedCount / totalSites) * 100 : 0
+                    };
+                });
+
+                setDistrictProgressData(calculatedProgress);
+                simpleCache.set(cacheKey, calculatedProgress, 5 * 60 * 1000);
+                ('💾 Cached district progress');
+
+            } catch (error) {
+                console.error('Error calculating district progress:', error);
+                setDistrictProgressData([]);
+            } finally {
+                setDistrictProgressLoading(false);
+            }
+        };
+
+        calculateDistrictProgress();
+    }, [districts, progressData, user]);
+
+    // Import GeoJSON data
+    const handleImportGeojson = async () => {
+        if (user?.role !== 'admin') {
+            setImportStatus('Unauthorized: Admin access required');
+            return;
+        }
+
+        try {
+            setImportGeojsonLoading(true);
+            setImportStatus('Importing GeoJSON data...');
+
+            const response = await axios.post(
+                'http://localhost:5000/api/admin/import-geojson',
+                {},
+                { withCredentials: true }
+            );
+
+            setImportStatus(response.data.message);
+
+            // Clear cache to force fresh data
+            simpleCache.clear();
+
+            // Refresh data
+            setTimeout(() => window.location.reload(), 2000);
+
+        } catch (error: any) {
+            console.error('Import failed:', error);
+            setImportStatus(
+                error.response?.data?.error || 'Failed to import GeoJSON data'
+            );
+        } finally {
+            setImportGeojsonLoading(false);
+            // Clear status after 10 seconds
+            setTimeout(() => setImportStatus(null), 10000);
+        }
+    };
+
+    // Delete all cultural sites
+    const handleDeleteAllSites = async () => {
+        if (user?.role !== 'admin') {
+            setDeleteStatus('Unauthorized: Admin access required');
+            return;
+        }
+
+        const confirmed = window.confirm(
+            '⚠️ WARNING: This will permanently delete ALL cultural sites data!\n\n' +
+            'This action cannot be undone. Are you absolutely sure?'
+        );
+
+        if (!confirmed) return;
+
+        const doubleConfirmed = window.confirm(
+            '🚨 FINAL WARNING: You are about to delete ALL cultural sites!\n\n' +
+            'Type "DELETE" in your mind and click OK to proceed, or Cancel to abort.'
+        );
+
+        if (!doubleConfirmed) return;
+
+        try {
+            setDeleteLoading(true);
+            setDeleteStatus('Deleting all cultural sites...');
+
+            const response = await axios.delete(
+                'http://localhost:5000/api/admin/sites',
+                { withCredentials: true }
+            );
+
+            setDeleteStatus(response.data.message || 'Sites deleted successfully');
+
+            // Clear all cache and reset state
+            simpleCache.clear();
+
+            // Reset all data to empty states
+            setProgressData({
+                totalVisits: 0,
+                totalBadges: 0,
+                categoryProgress: [],
+                districtProgress: [],
+                recentVisits: [],
+                favoriteSites: []
+            });
+            setDistricts([]);
+            setDistrictProgressData([]);
+            setDistrictSites([]);
+            setFavoriteSites([]);
+
+            // Show success message
+            setTimeout(() => {
+                setDeleteStatus('All sites deleted successfully. The page will refresh.');
+                setTimeout(() => window.location.reload(), 1000);
+            }, 1000);
+
+        } catch (error: any) {
+            console.error('Delete failed:', error);
+            setDeleteStatus(
+                error.response?.data?.error || 'Failed to delete cultural sites'
+            );
+        } finally {
+            setDeleteLoading(false);
+            setTimeout(() => setDeleteStatus(null), 10000);
+        }
+    };
+
+    // Import Districts data
+    const handleImportDistricts = async () => {
+        if (user?.role !== 'admin') {
+            setImportStatus('Unauthorized: Admin access required');
+            return;
+        }
+
+        try {
+            setImportDistrictsLoading(true);
+            setImportStatus('Importing districts data...');
+
+            const response = await axios.post(
+                'http://localhost:5000/api/districts/import',
+                {},
+                { withCredentials: true }
+            );
+
+            setImportStatus(response.data.message);
+
+            // Clear cache to force fresh data
+            simpleCache.clear();
+
+            // Refresh data
+            setTimeout(() => window.location.reload(), 2000);
+
+        } catch (error: any) {
+            console.error('Districts import failed:', error);
+            setImportStatus(
+                error.response?.data?.error || 'Failed to import districts data'
+            );
+        } finally {
+            setImportDistrictsLoading(false);
+            // Clear status after 10 seconds
+            setTimeout(() => setImportStatus(null), 10000);
+        }
     };
 
     if (loading) {
@@ -238,66 +584,12 @@ const Dashboard = () => {
 
     // Use progressData for badges if available, otherwise fallback to user data
     const visitedCount = progressData?.totalVisits || 0;
-    const favoriteCount = user.favorites?.length || 0;
+    const favoriteCount = progressData?.favoriteSites?.length || 0;
     const badgeCount = progressData?.totalBadges || 0;
     const rank = getRank(visitedCount);
 
-    // Calculate district progress
-    const districtProgress = districts.map(district => {
-        // Find if this district exists in the user's progress
-        const userDistrictProgress = progressData?.districtProgress?.find(
-            d => d.district === district.name
-        );
-
-        // Count sites in this district that have been visited from both places:
-        // 1. From district progress if available
-        // 2. From recent visits as fallback
-        // 3. From all category progress as a second fallback
-        let visitedCount = 0;
-
-        if (userDistrictProgress?.visitedSites?.length > 0) {
-            // Use district progress data if available
-            visitedCount = userDistrictProgress.visitedSites.length;
-        } else {
-            // Count sites from recent visits that match this district
-            const visitedSitesInDistrict = progressData?.recentVisits?.filter(
-                visit => visit.site.district === district.name
-            )?.length || 0;
-
-            // Also check all category progress for sites in this district
-            const visitedFromCategories = progressData?.categoryProgress?.reduce((count, category) => {
-                // Skip if no visited sites
-                if (!category.visitedSites?.length) return count;
-
-                // Count sites in this category that belong to this district
-                const sitesByDistrict = category.visitedSites.filter((site: any) => {
-                    // Handle both populated and non-populated cases
-                    return (site.district === district.name) ||
-                        (site.district && site.district === district.name);
-                });
-
-                return count + sitesByDistrict.length;
-            }, 0) || 0;
-
-            // Use the highest count found
-            visitedCount = Math.max(visitedSitesInDistrict, visitedFromCategories);
-        }
-
-        const totalSites = userDistrictProgress?.totalSites || district.siteCount;
-        const completed = userDistrictProgress?.completed || (totalSites > 0 && visitedCount >= totalSites);
-
-        return {
-            name: district.name,
-            visitedCount,
-            totalSites,
-            completed,
-            percentage: totalSites > 0 ? (visitedCount / totalSites) * 100 : 0
-        };
-    });
-
     return (
         <Box sx={{
-            // Remove maxWidth and use full width
             width: '100%',
             p: { xs: 2, md: 4 },
             bgcolor: 'background.default',
@@ -310,18 +602,18 @@ const Dashboard = () => {
                     <Typography
                         variant="h3"
                         fontWeight={700}
-                        gutterBottom
+                        textAlign="center"
                         sx={{
+                            mb: 2,
                             background: `linear-gradient(45deg, ${theme.palette.primary.main} 30%, ${theme.palette.secondary.main} 90%)`,
                             backgroundClip: 'text',
                             WebkitBackgroundClip: 'text',
                             WebkitTextFillColor: 'transparent',
-                            textAlign: 'center',
-                            mb: 1
                         }}
                     >
                         Your Cultural Journey
                     </Typography>
+
                     <Typography
                         variant="h6"
                         color="text.secondary"
@@ -332,16 +624,183 @@ const Dashboard = () => {
                     </Typography>
                 </Box>
 
-                {/* User Profile Section */}
+                {/* User Profile or Admin Section */}
                 <Box sx={{ mb: 4 }}>
+                    {user?.role === 'admin' ? (
+                        <Card sx={{
+                            borderRadius: 3,
+                            background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                            color: 'white'
+                        }}>
+                            <CardContent sx={{ p: 3 }}>
+                                <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
+                                    <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)' }}>
+                                        <AdminPanelSettingsIcon />
+                                    </Avatar>
+                                    <Box>
+                                        <Typography variant="h5" fontWeight={700}>
+                                            Admin Dashboard
+                                        </Typography>
+                                        <Typography variant="body1" sx={{ opacity: 0.9 }}>
+                                            Manage cultural sites data
+                                        </Typography>
+                                    </Box>
+                                </Stack>
 
-                    <UserProfileEdit />
+                                <Grid container spacing={3}>
+                                    {/* Admin Status */}
+                                    <Grid xs={12} md={3}>
+                                        <Card sx={{ bgcolor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
+                                            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                                                <AdminPanelSettingsIcon sx={{ fontSize: 40, mb: 1, color: 'white' }} />
+                                                <Typography variant="h4" fontWeight={700} color="white">
+                                                    Admin
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                                                    Administrator Panel
+                                                </Typography>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+
+                                    {/* Import GeoJSON Section */}
+                                    <Grid xs={12} md={3}>
+                                        <Card sx={{ bgcolor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
+                                            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                                                <Button
+                                                    variant="contained"
+                                                    startIcon={importGeojsonLoading ? <CircularProgress size={20} color="inherit" /> : <CloudUploadIcon />}
+                                                    onClick={handleImportGeojson}
+                                                    disabled={importGeojsonLoading || importDistrictsLoading || deleteLoading}
+                                                    sx={{
+                                                        bgcolor: 'rgba(16, 185, 129, 0.9)',
+                                                        '&:hover': { bgcolor: 'rgba(16, 185, 129, 1)' },
+                                                        '&:disabled': { bgcolor: 'rgba(100, 100, 100, 0.5)' },
+                                                        mb: 1,
+                                                        minWidth: 150
+                                                    }}
+                                                >
+                                                    {importGeojsonLoading ? 'Importing...' : 'Import Sites'}
+                                                </Button>
+                                                <Typography variant="caption" display="block" sx={{ opacity: 0.8 }}>
+                                                    Import cultural sites from GeoJSON
+                                                </Typography>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+
+                                    {/* Import Districts Section */}
+                                    <Grid xs={12} md={3}>
+                                        <Card sx={{ bgcolor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
+                                            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                                                <Button
+                                                    variant="contained"
+                                                    startIcon={importDistrictsLoading ? <CircularProgress size={20} color="inherit" /> : <MapIcon />}
+                                                    onClick={handleImportDistricts}
+                                                    disabled={importGeojsonLoading || importDistrictsLoading || deleteLoading}
+                                                    sx={{
+                                                        bgcolor: 'rgba(59, 130, 246, 0.9)',
+                                                        '&:hover': { bgcolor: 'rgba(59, 130, 246, 1)' },
+                                                        '&:disabled': { bgcolor: 'rgba(100, 100, 100, 0.5)' },
+                                                        mb: 1,
+                                                        minWidth: 150
+                                                    }}
+                                                >
+                                                    {importDistrictsLoading ? 'Importing...' : 'Import Districts'}
+                                                </Button>
+                                                <Typography variant="caption" display="block" sx={{ opacity: 0.8 }}>
+                                                    Import districts from sites data
+                                                </Typography>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+
+                                    {/* Delete Section */}
+                                    <Grid xs={12} md={3}>
+                                        <Card sx={{ bgcolor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
+                                            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                                                <Button
+                                                    variant="contained"
+                                                    startIcon={deleteLoading ? <CircularProgress size={20} color="inherit" /> : <DeleteIcon />}
+                                                    onClick={handleDeleteAllSites}
+                                                    disabled={importGeojsonLoading || importDistrictsLoading || deleteLoading}
+                                                    sx={{
+                                                        bgcolor: 'rgba(239, 68, 68, 0.9)',
+                                                        '&:hover': { bgcolor: 'rgba(239, 68, 68, 1)' },
+                                                        '&:disabled': { bgcolor: 'rgba(100, 100, 100, 0.5)' },
+                                                        mb: 1,
+                                                        minWidth: 150
+                                                    }}
+                                                >
+                                                    {deleteLoading ? 'Deleting...' : 'Delete All'}
+                                                </Button>
+                                                <Typography variant="caption" display="block" sx={{ opacity: 0.8 }}>
+                                                    ⚠️ Permanently delete all sites
+                                                </Typography>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+                                </Grid>
+
+                                {/* Status Messages */}
+                                {(importStatus || deleteStatus) && (
+                                    <Box sx={{ mt: 3 }}>
+                                        {importStatus && (
+                                            <Paper
+                                                sx={{
+                                                    p: 2,
+                                                    mb: 2,
+                                                    bgcolor: importStatus.includes('failed') || importStatus.includes('Unauthorized')
+                                                        ? 'rgba(239, 68, 68, 0.1)'
+                                                        : 'rgba(16, 185, 129, 0.1)',
+                                                    border: importStatus.includes('failed') || importStatus.includes('Unauthorized')
+                                                        ? '1px solid rgba(239, 68, 68, 0.3)'
+                                                        : '1px solid rgba(16, 185, 129, 0.3)',
+                                                    borderRadius: 2
+                                                }}
+                                            >
+                                                <Typography variant="body2" color="white">
+                                                    📁 Import Status: {importStatus}
+                                                </Typography>
+                                            </Paper>
+                                        )}
+                                        {deleteStatus && (
+                                            <Paper
+                                                sx={{
+                                                    p: 2,
+                                                    bgcolor: deleteStatus.includes('failed') || deleteStatus.includes('Unauthorized')
+                                                        ? 'rgba(239, 68, 68, 0.1)'
+                                                        : 'rgba(245, 158, 11, 0.1)',
+                                                    border: deleteStatus.includes('failed') || deleteStatus.includes('Unauthorized')
+                                                        ? '1px solid rgba(239, 68, 68, 0.3)'
+                                                        : '1px solid rgba(245, 158, 11, 0.3)',
+                                                    borderRadius: 2
+                                                }}
+                                            >
+                                                <Typography variant="body2" color="white">
+                                                    🗑️ Delete Status: {deleteStatus}
+                                                </Typography>
+                                            </Paper>
+                                        )}
+                                    </Box>
+                                )}
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        // Regular user profile section - simplified without location
+
+                        <Stack direction="row" alignItems="center" spacing={2}>
+
+                            <UserProfileEdit />
+                        </Stack>
+
+                    )}
                 </Box>
 
-                {/* Stats Overview Cards */}
+                {/* Stats Overview Cards - Fix Grid item prop */}
                 <Grid container spacing={3} sx={{ mb: 4 }}>
                     {/* Rank Card */}
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Grid xs={12} sm={6} md={3}>
                         <Card
                             sx={{
                                 background: rank.gradient,
@@ -373,7 +832,7 @@ const Dashboard = () => {
                     </Grid>
 
                     {/* Sites Visited */}
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Grid xs={12} sm={6} md={3}>
                         <Card sx={{ borderRadius: 3, height: '100%' }}>
                             <CardContent sx={{ textAlign: 'center', py: 3 }}>
                                 <Avatar
@@ -398,7 +857,7 @@ const Dashboard = () => {
                     </Grid>
 
                     {/* Badges Earned */}
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Grid xs={12} sm={6} md={3}>
                         <Card sx={{ borderRadius: 3, height: '100%' }}>
                             <CardContent sx={{ textAlign: 'center', py: 3 }}>
                                 <Avatar
@@ -423,7 +882,7 @@ const Dashboard = () => {
                     </Grid>
 
                     {/* Favorites */}
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Grid xs={12} sm={6} md={3}>
                         <Card
                             sx={{
                                 borderRadius: 3,
@@ -465,7 +924,7 @@ const Dashboard = () => {
                 {/* Progress Section */}
                 <Grid container spacing={3} sx={{ mb: 4 }}>
                     {/* Category Progress */}
-                    <Grid item xs={12} md={6}>
+                    <Grid xs={12} md={6}>
                         <Card sx={{ borderRadius: 3, height: '100%' }}>
                             <CardContent sx={{ p: 3 }}>
                                 <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
@@ -477,45 +936,71 @@ const Dashboard = () => {
 
                                 {error ? (
                                     <Typography color="error">{error}</Typography>
-                                ) : progressData?.categoryProgress?.length > 0 ? (
+                                ) : loading ? (
+                                    <Box textAlign="center" py={4}>
+                                        <CircularProgress size={40} />
+                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                                            Loading category data...
+                                        </Typography>
+                                    </Box>
+                                ) : progressData?.categoryProgress &&
+                                    Array.isArray(progressData.categoryProgress) &&
+                                    progressData.categoryProgress.length > 0 ? (
                                     <Stack spacing={3}>
-                                        {progressData.categoryProgress.map((category) => (
-                                            <Box key={category.category}>
-                                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                                                    <Typography variant="body1" fontWeight={500}>
-                                                        {category.category.charAt(0).toUpperCase() + category.category.slice(1).replace(/_/g, ' ')}
-                                                    </Typography>
-                                                    <Chip
-                                                        label={`${category.visitedSites.length}/${category.totalSites}`}
-                                                        size="small"
-                                                        color={category.completed ? "success" : "default"}
-                                                        variant={category.completed ? "filled" : "outlined"}
+                                        {progressData.categoryProgress.map((category) => {
+                                            if (!category || !category.category) return null;
+
+                                            return (
+                                                <Box key={category.category}>
+                                                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                                                        <Typography variant="body1" fontWeight={500}>
+                                                            {category.category.charAt(0).toUpperCase() + category.category.slice(1).replace(/_/g, ' ')}
+                                                        </Typography>
+                                                        <Chip
+                                                            label={`${category.visitedSites?.length || 0}/${category.totalSites || 0}`}
+                                                            size="small"
+                                                            color={category.completed ? "success" : "default"}
+                                                            variant={category.completed ? "filled" : "outlined"}
+                                                        />
+                                                    </Stack>
+                                                    <LinearProgress
+                                                        variant="determinate"
+                                                        value={((category.visitedSites?.length || 0) / Math.max(1, category.totalSites || 0)) * 100}
+                                                        color={category.completed ? "success" : "primary"}
+                                                        sx={{
+                                                            height: 10,
+                                                            borderRadius: 2,
+                                                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                                                        }}
                                                     />
-                                                </Stack>
-                                                <LinearProgress
-                                                    variant="determinate"
-                                                    value={(category.visitedSites.length / Math.max(1, category.totalSites)) * 100}
-                                                    color={category.completed ? "success" : "primary"}
-                                                    sx={{
-                                                        height: 10,
-                                                        borderRadius: 2,
-                                                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-                                                    }}
-                                                />
-                                            </Box>
-                                        ))}
+                                                </Box>
+                                            );
+                                        })}
                                     </Stack>
                                 ) : (
-                                    <Typography variant="body2" color="text.secondary">
-                                        No category data available
-                                    </Typography>
+                                    <Box textAlign="center" py={4}>
+                                        <CategoryIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
+                                        <Typography variant="body2" color="text.secondary">
+                                            No category data available yet
+                                        </Typography>
+                                        {user?.role === 'admin' && (
+                                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                                                Import GeoJSON data to populate sites
+                                            </Typography>
+                                        )}
+                                        {user?.role !== 'admin' && (
+                                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                                                Start exploring cultural sites to see your progress!
+                                            </Typography>
+                                        )}
+                                    </Box>
                                 )}
                             </CardContent>
                         </Card>
                     </Grid>
 
                     {/* District Progress */}
-                    <Grid item xs={12} md={6}>
+                    <Grid xs={12} md={6}>
                         <Card sx={{ borderRadius: 3, height: '100%' }}>
                             <CardContent sx={{ p: 3 }}>
                                 <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
@@ -523,14 +1008,37 @@ const Dashboard = () => {
                                     <Typography variant="h6" fontWeight={600}>
                                         District Progress
                                     </Typography>
+                                    {districtProgressLoading && (
+                                        <CircularProgress size={16} thickness={4} />
+                                    )}
                                 </Stack>
 
-                                {districtProgress.length > 0 ? (
+                                {districtProgressLoading ? (
+                                    <Box
+                                        display="flex"
+                                        justifyContent="center"
+                                        alignItems="center"
+                                        flexDirection="column"
+                                        sx={{
+                                            py: 6,
+                                            minHeight: 200
+                                        }}
+                                    >
+                                        <CircularProgress size={40} thickness={4} />
+                                        <Typography
+                                            variant="body2"
+                                            color="text.secondary"
+                                            sx={{ mt: 2, textAlign: 'center' }}
+                                        >
+                                            Calculating district progress...
+                                        </Typography>
+                                    </Box>
+                                ) : districtProgressData.length > 0 ? (
                                     <Box
                                         sx={{
-                                            maxHeight: 400, // Fixed height to match category progress
-                                            overflowY: 'auto', // Make it scrollable
-                                            pr: 1, // Add padding for scrollbar
+                                            maxHeight: 400,
+                                            overflowY: 'auto',
+                                            pr: 1,
                                             '&::-webkit-scrollbar': {
                                                 width: '6px',
                                             },
@@ -548,7 +1056,7 @@ const Dashboard = () => {
                                         }}
                                     >
                                         <Stack spacing={3}>
-                                            {districtProgress.map((district) => (
+                                            {districtProgressData.map((district) => (
                                                 <Box
                                                     key={district.name}
                                                     onClick={() => handleDistrictClick(district.name)}
@@ -587,11 +1095,29 @@ const Dashboard = () => {
                                             ))}
                                         </Stack>
                                     </Box>
-                                ) : (
-                                    <Typography variant="body2" color="text.secondary">
-                                        No district data available
-                                    </Typography>
-                                )}
+                                ) : !loading && !districtProgressLoading ? (
+                                    <Box
+                                        display="flex"
+                                        justifyContent="center"
+                                        alignItems="center"
+                                        flexDirection="column"
+                                        sx={{
+                                            py: 4,
+                                            minHeight: 150
+                                        }}
+                                    >
+                                        <MapIcon
+                                            sx={{
+                                                fontSize: 48,
+                                                color: 'text.secondary',
+                                                mb: 1
+                                            }}
+                                        />
+                                        <Typography variant="body2" color="text.secondary" textAlign="center">
+                                            No district data available
+                                        </Typography>
+                                    </Box>
+                                ) : null}
                             </CardContent>
                         </Card>
                     </Grid>
@@ -675,8 +1201,8 @@ const Dashboard = () => {
                     </CardContent>
                 </Card>
 
-                {/* Recent Visits */}
-                {progressData?.recentVisits?.length > 0 && (
+                {/* Recent Visits - Fix null check */}
+                {progressData?.recentVisits && progressData.recentVisits.length > 0 && (
                     <Card sx={{ borderRadius: 3 }}>
                         <CardContent sx={{ p: 3 }}>
                             <Typography variant="h6" fontWeight={600} gutterBottom>
@@ -684,11 +1210,11 @@ const Dashboard = () => {
                             </Typography>
                             <List sx={{ pt: 0 }}>
                                 {progressData.recentVisits
-                                    .sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime()) // Sort by date descending (newest first)
-                                    .slice(0, 3) // Take only the 3 most recent
+                                    .sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime())
+                                    .slice(0, 3)
                                     .map((visit, index) => (
                                         <ListItem
-                                            key={visit._id || `${visit.site._id}-${index}`} // Use visit ID or fallback
+                                            key={visit._id || `${visit.site._id}-${index}`}
                                             sx={{
                                                 borderRadius: 2,
                                                 mb: 1,
@@ -702,16 +1228,16 @@ const Dashboard = () => {
                                             <ListItemText
                                                 primary={
                                                     <Typography variant="body1" fontWeight={500}>
-                                                        {visit.site.name}
+                                                        {visit.site?.name}
                                                     </Typography>
                                                 }
                                                 secondary={
                                                     <Stack spacing={0.5}>
                                                         <Typography variant="body2" color="text.secondary">
-                                                            {visit.site.category?.charAt(0).toUpperCase() + visit.site.category?.slice(1)} • {visit.site.district || "Unknown district"}
+                                                            {visit.site?.category?.charAt(0).toUpperCase() + visit.site?.category?.slice(1)} • {visit.site?.district || "Unknown district"}
                                                         </Typography>
                                                         <Typography variant="caption" color="text.secondary">
-                                                            Visited on {new Date(visit.visitDate).toLocaleDateString()}
+                                                            Visited on {new Date(visit?.visitDate).toLocaleDateString()}
                                                         </Typography>
                                                     </Stack>
                                                 }
@@ -723,7 +1249,7 @@ const Dashboard = () => {
                     </Card>
                 )}
 
-                {/* District Dialog - Keep your existing dialog code with minor styling updates */}
+                {/* District Dialog */}
                 <Dialog
                     open={dialogOpen}
                     onClose={() => setDialogOpen(false)}
@@ -915,7 +1441,6 @@ const Dashboard = () => {
                                 </Typography>
                             </Box>
                         ) : favoriteSites.length === 0 ? (
-                            // Add this case for when we have favorites but no site data loaded
                             <Box textAlign="center" py={4}>
                                 <Typography variant="h6" color="text.secondary" gutterBottom>
                                     Unable to load favorite sites
@@ -934,7 +1459,6 @@ const Dashboard = () => {
                         ) : (
                             <List>
                                 {favoriteSites.map((site) => {
-                                    // Check if this site has been visited using the correct data structure
                                     const isVisitedInRecentVisits = progressData?.recentVisits?.some(
                                         visit => visit.site._id === site._id
                                     );
@@ -986,6 +1510,8 @@ const Dashboard = () => {
                                                     <LocationOnIcon color="warning" sx={{ fontSize: 16 }} />
                                                 </Stack>
                                             </ListItemIcon>
+                                            // Replace the problematic section in your favorites dialog with this corrected code:
+
                                             <ListItemText
                                                 primary={
                                                     <Stack direction="row" spacing={1} alignItems="center">

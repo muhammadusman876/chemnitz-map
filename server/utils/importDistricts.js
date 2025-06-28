@@ -17,14 +17,14 @@ export const importDistrictsAndUpdateSites = async () => {
       __dirname,
       "../data/Stadtteile.geojson"
     );
-    console.log(districtsFilePath)
+    districtsFilePath;
     const geojsonData = JSON.parse(fs.readFileSync(districtsFilePath, "utf8"));
 
     // Extract district names
     const districts = geojsonData.features.map(
       (feature) => feature.properties.STADTTNAME
     );
-    console.log(`Found ${districts.length} districts: ${districts.join(", ")}`);
+    `Found ${districts.length} districts: ${districts.join(", ")}`;
 
     // Create a map of polygons for each district
     const districtPolygons = {};
@@ -35,9 +35,7 @@ export const importDistrictsAndUpdateSites = async () => {
 
     // Get all cultural sites
     const sites = await CulturalSite.find({});
-    console.log(
-      `Checking ${sites.length} cultural sites for district assignment`
-    );
+    `Checking ${sites.length} cultural sites for district assignment`;
 
     let updatedCount = 0;
 
@@ -66,7 +64,7 @@ export const importDistrictsAndUpdateSites = async () => {
       }
     }
 
-    console.log(`Updated ${updatedCount} sites with district information`);
+    `Updated ${updatedCount} sites with district information`;
     return {
       success: true,
       message: `Updated ${updatedCount} sites with district information`,

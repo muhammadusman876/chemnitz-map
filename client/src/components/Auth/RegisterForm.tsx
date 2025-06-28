@@ -70,7 +70,7 @@ const RegisterForm: React.FC = () => {
             // If your register already sets the user, you may not need this
             // await login(formData.email, formData.password);
 
-            navigate('/dashboard');
+            navigate('/');
         } catch (err: any) {
             const errorMessage = err.response?.data?.message || err.message || 'Registration failed';
             setError(errorMessage);

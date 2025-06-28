@@ -3,6 +3,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import axios from 'axios';
+import { simpleCache } from '../../utils/simpleCache';
+import { backgroundLoader } from '../../services/backgroundLoader';
 
 interface DistrictMapViewProps {
     progressData: any;
@@ -76,24 +78,84 @@ const DistrictMapView: React.FC<DistrictMapViewProps> = ({
         tileLayerRef.current = L.tileLayer(tileUrl, tileOptions).addTo(mapRef.current);
     }, [themeMode]);
 
-    // Fetch district geojson and list
+    // Fetch district geojson and list with caching
     useEffect(() => {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const [geoJsonResponse, districtsResponse] = await Promise.all([
-                    axios.get('http://localhost:5000/api/districts/geojson'),
-                    axios.get('http://localhost:5000/api/districts/list')
-                ]);
-                setDistrictGeoJson(geoJsonResponse.data);
-                setDistricts(districtsResponse.data);
-                setError(null);
-            } catch (err) {
-                setError('Failed to load district map data');
+
+                // First, check if background loader has data ready
+                const cachedData = backgroundLoader.getCachedDistrictData();
+
+                if (cachedData.geoJson && cachedData.districts) {
+                    ('✅ Using preloaded district data');
+                    setDistrictGeoJson(cachedData.geoJson);
+                    setDistricts(cachedData.districts);
+                    setError(null);
+                    setLoading(false);
+                    return;
+                }
+
+                ('🔄 Waiting for background loading or fetching fresh data...');
+
+                // If not ready, ensure background loading is started and wait for it
+                await backgroundLoader.preloadDistrictData();
+
+                // Check again after background loading
+                const freshCachedData = backgroundLoader.getCachedDistrictData();
+
+                if (freshCachedData.geoJson && freshCachedData.districts) {
+                    ('✅ Using background-loaded district data');
+                    setDistrictGeoJson(freshCachedData.geoJson);
+                    setDistricts(freshCachedData.districts);
+                    setError(null);
+                } else {
+                    // Fallback: try manual loading
+                    ('⚠️ Background loading incomplete, trying manual fetch...');
+                    await fallbackDataFetch();
+                }
+
+            } catch (err: any) {
+                console.error('❌ Failed to load district data:', err);
+                setError(`Failed to load district map data: ${err.message}`);
             } finally {
                 setLoading(false);
             }
         };
+
+        const fallbackDataFetch = async () => {
+            try {
+                // Manual fallback loading
+                const [geoResponse, listResponse] = await Promise.allSettled([
+                    axios.get('http://localhost:5000/api/districts/geojson', {
+                        timeout: 20000,
+                        withCredentials: true
+                    }),
+                    axios.get('http://localhost:5000/api/districts/list', {
+                        timeout: 10000,
+                        withCredentials: true
+                    })
+                ]);
+
+                if (geoResponse.status === 'fulfilled' && listResponse.status === 'fulfilled') {
+                    setDistrictGeoJson(geoResponse.value.data);
+                    setDistricts(listResponse.value.data);
+
+                    // Cache for next time
+                    simpleCache.set('district-geojson', geoResponse.value.data, 60 * 60 * 1000);
+                    simpleCache.set('districts-list', listResponse.value.data, 15 * 60 * 1000);
+
+                    setError(null);
+                    ('✅ Fallback loading successful');
+                } else {
+                    throw new Error('Fallback loading failed');
+                }
+            } catch (fallbackError) {
+                console.error('❌ Fallback loading failed:', fallbackError);
+                setError('Unable to load district map data. Please try refreshing the page.');
+            }
+        };
+
         fetchData();
     }, []);
 
@@ -124,7 +186,7 @@ const DistrictMapView: React.FC<DistrictMapViewProps> = ({
                 }
             } else {
                 visitedCount = progressData?.recentVisits?.filter(
-                    (visit: any) => visit.site.district === districtName
+                    (visit: any) => visit.site?.district === districtName
                 )?.length || 0;
 
                 if (progressData?.categoryProgress) {
@@ -182,7 +244,7 @@ const DistrictMapView: React.FC<DistrictMapViewProps> = ({
 
                 if (!districtProgress || visitedCount === 0) {
                     const recentVisitsInDistrict = progressData?.recentVisits?.filter(
-                        (visit: any) => visit.site.district && visit.site.district.trim().toLowerCase() === districtName
+                        (visit: any) => visit.site?.district && visit.site?.district.trim().toLowerCase() === districtName
                     )?.length || 0;
                     visitedCount = Math.max(visitedCount, recentVisitsInDistrict);
                 }
@@ -193,6 +255,7 @@ const DistrictMapView: React.FC<DistrictMapViewProps> = ({
                 );
 
                 layer.on('click', () => {
+                    ('🎯 District clicked in DistrictMapView:', originalDistrictName);
                     onDistrictClick(originalDistrictName);
                 });
             }

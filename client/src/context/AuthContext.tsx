@@ -89,13 +89,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const logout = async () => {
         setLoading(true);
         try {
+            ('🔄 Calling logout API...');
             await logoutApi();
+            ('✅ Logout API call successful');
+
             // Server has cleared the cookie
             setUser(null);
             setIsAuthenticated(false);
             localStorage.removeItem('user');
+
+            ('✅ Local state cleared');
         } catch (error) {
-            console.error("Logout failed:", error);
+            console.error("❌ Logout API failed:", error);
+
+            // Even if API fails, clear local state
+            setUser(null);
+            setIsAuthenticated(false);
+            localStorage.removeItem('user');
+
+            ('⚠️ Cleared local state despite API error');
         } finally {
             setLoading(false);
         }

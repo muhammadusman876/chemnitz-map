@@ -172,23 +172,59 @@ export const getUserProgress = async (req, res) => {
       .populate("categoryProgress.visitedSites")
       .populate("districtProgress.visitedSites");
 
+    // Get user with populated favorites
+    const userWithFavorites = await User.findById(userId).populate("favorites");
+
     if (!userVisit) {
-      return res
-        .status(404)
-        .json({ message: "No progress found for this user" });
+
+      // Get all available categories and districts to show 0 progress
+      const allCategories = await CulturalSite.distinct("category");
+      const allDistricts = await CulturalSite.distinct("district");
+
+      // Create empty category progress
+      const emptyCategoryProgress = await Promise.all(
+        allCategories.map(async (category) => {
+          const totalSites = await CulturalSite.countDocuments({ category });
+          return {
+            category,
+            totalSites,
+            visitedSites: [],
+            completed: false,
+          };
+        })
+      );
+
+      // Create empty district progress
+      const emptyDistrictProgress = await Promise.all(
+        allDistricts.map(async (district) => {
+          const totalSites = await CulturalSite.countDocuments({ district });
+          return {
+            district,
+            totalSites,
+            visitedSites: [],
+            completed: false,
+          };
+        })
+      );
+
+      return res.json({
+        totalVisits: 0,
+        totalBadges: 0,
+        categoryProgress: emptyCategoryProgress,
+        districtProgress: emptyDistrictProgress,
+        recentVisits: [],
+        favoriteSites: userWithFavorites?.favorites || [],
+      });
     }
 
-    // Get user with populated favorites
-    const userWithFavorites = await User.findById(userId)
-      .populate('favorites'); // Add this line
-
+    // User has progress data
     return res.json({
       totalVisits: userVisit.visitedSites.length,
       totalBadges: userVisit.totalBadges,
       categoryProgress: userVisit.categoryProgress,
       districtProgress: userVisit.districtProgress,
       recentVisits: userVisit.visitedSites.slice(-5), // Last 5 visits
-      favoriteSites: userWithFavorites?.favorites || [], // Add this line
+      favoriteSites: userWithFavorites?.favorites || [],
     });
   } catch (error) {
     console.error("Error getting user progress:", error);
@@ -205,12 +241,20 @@ export const getProgressMapData = async (req, res) => {
     }
 
     const userVisit = await UserVisit.findOne({ userId });
-    if (!userVisit) {
-      return res.status(404).json({ message: "No progress found" });
-    }
 
     // Get all sites
     const allSites = await CulturalSite.find({});
+
+    if (!userVisit) {
+      // Return all sites as unvisited
+      const mapData = allSites.map((site) => ({
+        ...site.toObject(),
+        isVisited: false,
+        districtCompleted: false,
+      }));
+
+      return res.json(mapData);
+    }
 
     // Create map data with visit status
     const mapData = allSites.map((site) => {

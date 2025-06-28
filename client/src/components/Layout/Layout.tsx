@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import {
     AppBar,
@@ -15,7 +15,9 @@ import {
     ListItemIcon,
     ListItemText,
     Chip,
-    Stack
+    Stack,
+    useTheme,
+    CircularProgress
 } from "@mui/material";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
@@ -28,13 +30,16 @@ import MapIcon from "@mui/icons-material/Map";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useThemeMode } from "../../context/ThemeContext";
 import { useAuth } from "../../hooks/useAuth";
+import { backgroundLoader } from '../../services/backgroundLoader';
 
 const Layout: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const theme = useTheme();
     const { mode, toggleTheme } = useThemeMode();
     const { user, logout } = useAuth();
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+    const [backgroundLoading, setBackgroundLoading] = useState(false);
 
     // Check for pages that need special layout treatment
     const isMapPage = location.pathname === "/cultureSite";
@@ -59,6 +64,19 @@ const Layout: React.FC = () => {
         }
         handleClose();
     };
+
+    useEffect(() => {
+        const checkBackgroundLoading = () => {
+            if (!backgroundLoader.isDataReady()) {
+                setBackgroundLoading(true);
+                backgroundLoader.preloadDistrictData().then(() => {
+                    setBackgroundLoading(false);
+                });
+            }
+        };
+
+        checkBackgroundLoading();
+    }, []);
 
     return (
         <>
@@ -185,6 +203,7 @@ const Layout: React.FC = () => {
                             }}
                         >
                             <Avatar
+                                src={user?.avatar ? `http://localhost:5000${user.avatar}` : undefined}
                                 sx={{
                                     width: 36,
                                     height: 36,
@@ -195,12 +214,12 @@ const Layout: React.FC = () => {
                                     fontWeight: 600
                                 }}
                             >
-                                {user?.name ? user.name.charAt(0).toUpperCase() : <AccountCircleIcon />}
+                                {!user?.avatar && user?.username ? user.username.charAt(0).toUpperCase() : <AccountCircleIcon />}
                             </Avatar>
                         </IconButton>
                     </Stack>
 
-                    {/* Enhanced Dropdown Menu */}
+                    {/* Enhanced Dark Mode Aware Dropdown Menu */}
                     <Menu
                         anchorEl={anchorEl}
                         open={Boolean(anchorEl)}
@@ -212,9 +231,19 @@ const Layout: React.FC = () => {
                                 mt: 2,
                                 minWidth: 280,
                                 borderRadius: 3,
-                                background: "linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,250,252,0.9) 100%)",
+                                // Theme-aware background
+                                background: theme.palette.mode === 'dark'
+                                    ? "linear-gradient(135deg, rgba(18, 18, 18, 0.95) 0%, rgba(33, 33, 33, 0.95) 100%)"
+                                    : "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.95) 100%)",
                                 backdropFilter: "blur(20px)",
-                                border: "1px solid rgba(255,255,255,0.3)",
+                                // Theme-aware border
+                                border: theme.palette.mode === 'dark'
+                                    ? "1px solid rgba(255,255,255,0.1)"
+                                    : "1px solid rgba(255,255,255,0.3)",
+                                // Theme-aware box shadow
+                                boxShadow: theme.palette.mode === 'dark'
+                                    ? "0 20px 40px rgba(0,0,0,0.8)"
+                                    : "0 20px 40px rgba(0,0,0,0.15)",
                                 '& .MuiMenuItem-root': {
                                     borderRadius: 2,
                                     mx: 1.5,
@@ -222,8 +251,11 @@ const Layout: React.FC = () => {
                                     py: 1.5,
                                     px: 2,
                                     transition: "all 0.2s ease",
+                                    // Theme-aware hover colors
                                     "&:hover": {
-                                        bgcolor: "rgba(59, 130, 246, 0.1)",
+                                        bgcolor: theme.palette.mode === 'dark'
+                                            ? "rgba(59, 130, 246, 0.2)"
+                                            : "rgba(59, 130, 246, 0.1)",
                                         transform: "translateX(4px)",
                                     }
                                 },
@@ -234,20 +266,42 @@ const Layout: React.FC = () => {
                     >
                         {user && (
                             <>
-                                <Box sx={{ px: 2, py: 1.5, borderBottom: "1px solid rgba(0,0,0,0.1)" }}>
+                                <Box sx={{
+                                    px: 2,
+                                    py: 1.5,
+                                    borderBottom: theme.palette.mode === 'dark'
+                                        ? "1px solid rgba(255,255,255,0.1)"
+                                        : "1px solid rgba(0,0,0,0.1)"
+                                }}>
                                     <Typography variant="subtitle1" fontWeight={600} color="primary.main">
-                                        Welcome back!
+                                        Welcome back, {user?.username || 'User'}!
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary">
-                                        {user.email}
+                                        {user?.email}
                                     </Typography>
+                                    {user?.location && (
+                                        <Typography variant="caption" color="text.secondary">
+                                            📍 {
+                                                typeof user.location === 'string'
+                                                    ? user.location
+                                                    : user.location?.address ||
+                                                    (user.location?.lat && user.location?.lng
+                                                        ? `${user.location.lat.toFixed(2)}, ${user.location.lng.toFixed(2)}`
+                                                        : 'Chemnitz')
+                                            }
+                                        </Typography>
+                                    )}
                                 </Box>
 
                                 <MenuItem
                                     component={Link}
                                     to="/dashboard"
                                     sx={{
-                                        bgcolor: location.pathname === "/dashboard" ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                                        bgcolor: location.pathname === "/dashboard"
+                                            ? theme.palette.mode === 'dark'
+                                                ? "rgba(59, 130, 246, 0.2)"
+                                                : "rgba(59, 130, 246, 0.1)"
+                                            : "transparent"
                                     }}
                                 >
                                     <ListItemIcon>
@@ -263,7 +317,13 @@ const Layout: React.FC = () => {
                                     </ListItemText>
                                 </MenuItem>
 
-                                <Divider sx={{ my: 1, mx: 1.5 }} />
+                                <Divider sx={{
+                                    my: 1,
+                                    mx: 1.5,
+                                    borderColor: theme.palette.mode === 'dark'
+                                        ? "rgba(255,255,255,0.1)"
+                                        : "rgba(0,0,0,0.1)"
+                                }} />
 
                                 <MenuItem onClick={handleLogout}>
                                     <ListItemIcon>
@@ -280,7 +340,13 @@ const Layout: React.FC = () => {
 
                         {!user && (
                             <>
-                                <Box sx={{ px: 2, py: 1.5, borderBottom: "1px solid rgba(0,0,0,0.1)" }}>
+                                <Box sx={{
+                                    px: 2,
+                                    py: 1.5,
+                                    borderBottom: theme.palette.mode === 'dark'
+                                        ? "1px solid rgba(255,255,255,0.1)"
+                                        : "1px solid rgba(0,0,0,0.1)"
+                                }}>
                                     <Typography variant="subtitle1" fontWeight={600} color="primary.main">
                                         Join the Adventure!
                                     </Typography>
@@ -335,6 +401,18 @@ const Layout: React.FC = () => {
                     </Container>
                 )}
             </Box>
+
+            {/* Optional Background Data Loading Indicator */}
+            {backgroundLoading && (
+                <Box sx={{ position: 'fixed', bottom: 16, right: 16, zIndex: 9999 }}>
+                    <Chip
+                        icon={<CircularProgress size={16} />}
+                        label="Loading map data..."
+                        variant="outlined"
+                        size="small"
+                    />
+                </Box>
+            )}
         </>
     );
 };

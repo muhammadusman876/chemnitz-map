@@ -1,7 +1,7 @@
 {
   "name": "mern-auth-app",
   "version": "1.0.0",
-  "description": "A MERN stack application with JWT authentication and Tailwind CSS.",
+  "description": "A MERN stack application with JWT authentication.",
   "type": "module",
   "main": "server.js",
   "scripts": {

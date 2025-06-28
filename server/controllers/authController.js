@@ -2,6 +2,11 @@ import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import { generateToken } from "../middleware/authMiddleware.js";
 import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Register a new user
 export const register = async (req, res) => {
@@ -85,6 +90,7 @@ export const login = async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
+        role: user.role,
       },
       message: "Login successful",
     });
@@ -133,13 +139,14 @@ export const getCurrentUser = async (req, res) => {
   }
 };
 
+// Update user details
 export const updateUser = async (req, res) => {
   try {
     const userId = req.user?.id; // Use req.user.id if using auth middleware
     const updateFields = { ...req.body };
 
     // Prevent updating sensitive fields directly
-    delete updateFields.password;
+    delete updateFields.password; // Password should be updated via separate endpoint
     delete updateFields.role;
     delete updateFields.email; // Optional: prevent email change
 
@@ -155,10 +162,65 @@ export const updateUser = async (req, res) => {
 
     res.json(updatedUser);
   } catch (err) {
-    res.status(500).json({ message: "Failed to update user.", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Failed to update user.", error: err.message });
   }
 };
 
+// Update password
+export const updatePassword = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { currentPassword, newPassword } = req.body;
+
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        message: "Current password and new password are required",
+      });
+    }
+
+    // Validate new password length
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        message: "New password must be at least 6 characters long",
+      });
+    }
+
+    // Find user with password field
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(
+      currentPassword,
+      user.password
+    );
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({ message: "Current password is incorrect" });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedNewPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password
+    await User.findByIdAndUpdate(userId, { password: hashedNewPassword });
+
+    res.json({
+      message: "Password updated successfully",
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Failed to update password", error: error.message });
+  }
+};
+
+// Upload avatar
 export const uploadAvatar = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
@@ -175,6 +237,59 @@ export const uploadAvatar = async (req, res) => {
 
     res.json({ avatar: user.avatar, message: "Avatar updated" });
   } catch (err) {
-    res.status(500).json({ message: "Failed to upload avatar", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Failed to upload avatar", error: err.message });
+  }
+};
+
+// Delete avatar
+export const deleteAvatar = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Find the user and get current avatar path
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // If user has an avatar, delete the file from filesystem
+    if (user.avatar) {
+      // Fix the path - user.avatar already contains '/uploads/filename'
+      // So we need to remove the leading slash and get just the filename
+      const filename = user.avatar.replace("/uploads/", "");
+      const avatarPath = path.join(__dirname, "../uploads", filename);
+
+      "🗑️ Attempting to delete:", avatarPath;
+
+      // Check if file exists and delete it
+      if (fs.existsSync(avatarPath)) {
+        fs.unlinkSync(avatarPath);
+        console.log("✅ Deleted avatar file:", avatarPath);
+      } else {
+        console.warn("❗ File does not exist, cannot delete avatar:", avatarPath);
+      }
+    }
+
+    // Update user in database to remove avatar
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $unset: { avatar: 1 } }, // Remove avatar field
+      { new: true }
+    ).select("-password");
+
+    res.json({
+      message: "Avatar removed successfully",
+      user: {
+        id: updatedUser._id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        avatar: null, // Explicitly return null
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to remove avatar" });
   }
 };

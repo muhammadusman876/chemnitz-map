@@ -12,7 +12,6 @@ const __dirname = path.dirname(__filename);
 export const importDistricts = async (req, res) => {
   try {
     const result = await importDistrictsAndUpdateSites();
-    console.log(result, "districts imported successfully");
 
     if (result.success) {
       res.status(200).json({ message: result.message });
@@ -66,16 +65,56 @@ export const getSitesByDistrict = async (req, res) => {
 // Get district GeoJSON data
 export const getDistrictGeoJson = async (req, res) => {
   try {
-    console.log("are we here?");
-    const districtsFilePath = path.join(
-      __dirname,
-      "../data/Stadtteile.geojson"
-    );
-    console.log(districtsFilePath, "districts file path");
-    const geojsonData = fs.readFileSync(districtsFilePath, "utf8");
-    res.json(JSON.parse(geojsonData));
+    // Set cache headers for longer caching
+    res.set({
+      "Cache-Control": "public, max-age=3600", // Cache for 1 hour
+      "Content-Type": "application/json",
+    });
+
+    // If you have a large GeoJSON file, consider:
+    const geojsonPath = path.join(__dirname, "../data/Stadtteile.geojson");
+
+    if (!fs.existsSync(geojsonPath)) {
+      return res.status(404).json({ error: "District GeoJSON file not found" });
+    }
+
+    const geojsonData = JSON.parse(fs.readFileSync(geojsonPath, "utf8"));
+
+    // Optional: Simplify the GeoJSON to reduce size
+    if (geojsonData.features && geojsonData.features.length > 0) {
+      geojsonData.features = geojsonData.features.map((feature) => ({
+        type: feature.type,
+        properties: {
+          // Only keep essential properties
+          STADTTNAME: feature.properties.STADTTNAME,
+          // Add any other essential properties you need
+        },
+        geometry: feature.geometry,
+      }));
+    }
+    res.json(geojsonData);
   } catch (error) {
-    console.error("Error serving district GeoJSON:", error);
-    res.status(500).json({ error: error.message });
+    console.error("Error fetching district GeoJSON:", error);
+    res.status(500).json({ error: "Failed to fetch district GeoJSON" });
+  }
+};
+
+export const getDistrictsList = async (req, res) => {
+  try {
+    // Set cache headers
+    res.set({
+      "Cache-Control": "public, max-age=900", // Cache for 15 minutes
+      "Content-Type": "application/json",
+    });
+
+    // Get from database or file - make this as fast as possible
+    const districts = await CulturalSite.find({})
+      .select("name siteCount")
+      .lean();
+      
+    res.json(districts);
+  } catch (error) {
+    console.error("Error fetching districts list:", error);
+    res.status(500).json({ error: "Failed to fetch districts list" });
   }
 };

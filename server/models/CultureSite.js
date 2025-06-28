@@ -28,7 +28,6 @@ const CulturalSiteSchema = new mongoose.Schema({
   },
   district: {
     type: String,
-    required: true,
   },
   description: String,
   coordinates: {
