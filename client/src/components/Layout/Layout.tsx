@@ -84,47 +84,51 @@ const Layout: React.FC = () => {
                 position="static"
                 elevation={0}
                 sx={{
-                    background: isLandingPage
-                        ? "rgba(30, 41, 59, 0.8)"
-                        : "linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)",
-                    backdropFilter: isLandingPage ? "blur(20px)" : "none",
-                    borderBottom: isLandingPage ? "1px solid rgba(255, 255, 255, 0.1)" : "none",
+                    background: "linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)",
                 }}
             >
                 <Toolbar sx={{ py: 1 }}>
                     <Stack direction="row" alignItems="center" spacing={1} sx={{ flexGrow: 1 }}>
                         <ExploreIcon sx={{ fontSize: 28, color: "#fff" }} />
-                        <Typography
-                            variant="h6"
-                            component={Link}
-                            to="/"
-                            sx={{
-                                color: "#fff",
-                                textDecoration: "none",
-                                fontWeight: 700,
-                                fontSize: "1.3rem",
-                                background: "linear-gradient(45deg, #fff 30%, #e0e7ff 90%)",
-                                backgroundClip: "text",
-                                WebkitBackgroundClip: "text",
-                                WebkitTextFillColor: "transparent",
-                                "&:hover": {
-                                    transform: "scale(1.02)",
-                                    transition: "transform 0.2s ease"
-                                }
-                            }}
-                        >
-                            Cultural Explorer
-                        </Typography>
-                        <Chip
-                            label="2025"
-                            size="small"
-                            sx={{
-                                bgcolor: "rgba(255, 255, 255, 0.2)",
-                                color: "white",
-                                fontWeight: 600,
-                                fontSize: "0.7rem"
-                            }}
-                        />
+                        <Box>
+                            <Typography
+                                variant="h6"
+                                component={Link}
+                                to="/"
+                                sx={{
+                                    color: "#fff",
+                                    textDecoration: "none",
+                                    fontWeight: 700,
+                                    fontSize: "1.3rem",
+                                    background: "linear-gradient(45deg, #fff 30%, #e0e7ff 90%)",
+                                    backgroundClip: "text",
+                                    WebkitBackgroundClip: "text",
+                                    WebkitTextFillColor: "transparent",
+                                    "&:hover": {
+                                        transform: "scale(1.02)",
+                                        transition: "transform 0.2s ease"
+                                    },
+                                    display: "block",
+                                    lineHeight: 1.2
+                                }}
+                            >
+                                Chemnitz Uncovered
+                            </Typography>
+                            <Typography
+                                variant="caption"
+                                sx={{
+                                    color: "rgba(255, 255, 255, 0.8)",
+                                    fontFamily: "monospace",
+                                    textTransform: "uppercase",
+                                    fontSize: "0.7rem",
+                                    fontWeight: 500,
+                                    display: "block",
+                                    lineHeight: 1
+                                }}
+                            >
+                                _C_the_Unseen_
+                            </Typography>
+                        </Box>
                     </Stack>
 
                     <Stack direction="row" spacing={1} alignItems="center">
@@ -390,7 +394,7 @@ const Layout: React.FC = () => {
 
             <Box sx={{
                 minHeight: "calc(100vh - 64px)",
-                background: (isAuthPage || isDashboardPage || isLandingPage) ? "transparent" : "#f5f6fa",
+                background: (isAuthPage || isDashboardPage || isLandingPage) ? "transparent" : theme.palette.background.default,
                 py: (isMapPage || isAuthPage || isDashboardPage || isLandingPage) ? 0 : 4
             }}>
                 {(isMapPage || isAuthPage || isDashboardPage || isLandingPage) ? (
@@ -402,7 +406,7 @@ const Layout: React.FC = () => {
                 )}
             </Box>
 
-            {/* Optional Background Data Loading Indicator */}
+            {/* Background Data Loading Indicator */}
             {backgroundLoading && (
                 <Box sx={{ position: 'fixed', bottom: 16, right: 16, zIndex: 9999 }}>
                     <Chip

@@ -84,7 +84,6 @@ const MapContainer = () => {
         setCategories(uniqueCategories);
         simpleCache.set('categories', uniqueCategories, 15 * 60 * 1000); // 15 minutes cache
         simpleCache.set('all-sites', sites, 10 * 60 * 1000); // 10 minutes cache for sites
-        ('💾 Cached categories and sites - Categories:', uniqueCategories.length);
       } catch (error) {
         console.error('❌ Failed to load categories:', error);
         setCategories([]); // Fallback to empty array
@@ -102,16 +101,13 @@ const MapContainer = () => {
       try {
         // If district filter is active, load district-specific data
         if (districtFilter) {
-          ('🔍 Loading district:', districtFilter);
 
           // Try cache first for district data
           const cacheKey = `district-${districtFilter}`;
           let districtSites = simpleCache.get(cacheKey);
 
           if (districtSites) {
-            ('✅ Using cached district data for:', districtFilter);
           } else {
-            ('🔄 Fetching fresh district data for:', districtFilter);
 
             try {
               // Cache miss - fetch fresh district data
@@ -126,7 +122,6 @@ const MapContainer = () => {
               // Only cache if we got valid data
               if (districtSites && Array.isArray(districtSites)) {
                 simpleCache.set(cacheKey, districtSites, 10 * 60 * 1000); // 10 minutes cache for districts
-                ('💾 Cached district data for:', districtFilter, '- Sites count:', districtSites.length);
               } else {
                 console.warn('⚠️ Invalid district data received:', districtSites);
                 districtSites = []; // Fallback to empty array
@@ -153,7 +148,6 @@ const MapContainer = () => {
 
               // Cache the filtered result
               simpleCache.set(cacheKey, districtSites, 10 * 60 * 1000);
-              ('💾 Cached fallback district data for:', districtFilter, '- Sites count:', districtSites.length);
             }
           }
 
@@ -197,7 +191,6 @@ const MapContainer = () => {
             const response = await fetch('http://localhost:5000/api/admin/');
             allSites = await response.json();
             simpleCache.set('all-sites', allSites, 10 * 60 * 1000); // 10 minutes cache
-            ('💾 Cached all-sites data - Count:', allSites.length);
           } else {
             ('✅ Using cached all-sites data');
           }
@@ -316,7 +309,6 @@ const MapContainer = () => {
         simpleCache.set('user-favorites', favoriteIds, 3 * 60 * 1000); // 3 minutes cache for favorites
       })
       .catch(error => {
-        ("Could not fetch favorites:", error.message);
         setIsLoggedIn(false);
       });
   }, []);
@@ -338,8 +330,6 @@ const MapContainer = () => {
 
   // FIXED: Handle district click properly - clear filters and set district
   const handleDistrictClick = async (district: string) => {
-    ('🏛️ District clicked:', district);
-
     // Clear all filters first
     setSelectedCategory('');
     setSearch('');
@@ -632,13 +622,7 @@ const MapContainer = () => {
               ) : (
                 // Show sites - search results OR district sites OR category filtered sites
                 <Box sx={{ py: 1 }}>
-                  {geoJsonData?.features?.length > 100 && (
-                    <Box sx={{ mb: 2, p: 2, bgcolor: 'info.light', borderRadius: 2 }}>
-                      <Typography variant="body2" color="info.contrastText">
-                        Showing {geoJsonData.features.length} sites. You can use the search box to narrow down results.
-                      </Typography>
-                    </Box>
-                  )}
+
                   <CulturalSitesList
                     sites={geoJsonData?.features || []}
                     onSiteClick={handleListSiteSelect}
@@ -669,6 +653,7 @@ const MapContainer = () => {
             setSelectedCategory={setSelectedCategory}
             categories={categories}
             setSelectedSite={setSelectedSite}
+            showCategoryFilter={!districtFilter} // <-- Add this line
           />
         ) : (
           <DistrictMapView
@@ -765,59 +750,76 @@ const MapContainer = () => {
                   mb: 3
                 }}
               >
-                {selectedSite.address && (
-                  <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                    <Box sx={{ color: theme.palette.primary.main, mt: 0.3 }}>
-                      <LocationOnIcon fontSize="small" />
-                    </Box>
-                    <Typography variant="body2">
-                      {selectedSite.address.street ? selectedSite.address.street + " " : ""}
-                      {selectedSite.address.housenumber ? selectedSite.address.housenumber + ", " : ""}
-                      {selectedSite.address.postcode ? selectedSite.address.postcode + " " : ""}
-                      {selectedSite.address.city ? selectedSite.address.city + ", " : ""}
-                      {selectedSite.address.country ? selectedSite.address.country : ""}
-                    </Typography>
-                  </Stack>
-                )}
+                {!(selectedSite.address || selectedSite.opening_hours || selectedSite.phone || selectedSite.website) ? (
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      textAlign: "center",
+                      fontStyle: "italic",
+                      py: 2,
+                      opacity: 0.7,
+                    }}
+                  >
+                    No contact or location information available.
+                  </Typography>
+                ) : (
+                  <>
+                    {selectedSite.address && (
+                      <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                        <Box sx={{ color: theme.palette.primary.main, mt: 0.3 }}>
+                          <LocationOnIcon fontSize="small" />
+                        </Box>
+                        <Typography variant="body2">
+                          {selectedSite.address.street ? selectedSite.address.street + " " : ""}
+                          {selectedSite.address.housenumber ? selectedSite.address.housenumber + ", " : ""}
+                          {selectedSite.address.postcode ? selectedSite.address.postcode + " " : ""}
+                          {selectedSite.address.city ? selectedSite.address.city + ", " : ""}
+                          {selectedSite.address.country ? selectedSite.address.country : ""}
+                        </Typography>
+                      </Stack>
+                    )}
 
-                {selectedSite.opening_hours && (
-                  <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                    <Box sx={{ color: theme.palette.primary.main, mt: 0.3 }}>
-                      <AccessTimeIcon fontSize="small" />
-                    </Box>
-                    <Typography variant="body2">{selectedSite.opening_hours}</Typography>
-                  </Stack>
-                )}
+                    {selectedSite.opening_hours && (
+                      <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                        <Box sx={{ color: theme.palette.primary.main, mt: 0.3 }}>
+                          <AccessTimeIcon fontSize="small" />
+                        </Box>
+                        <Typography variant="body2">{selectedSite.opening_hours}</Typography>
+                      </Stack>
+                    )}
 
-                {selectedSite.phone && (
-                  <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                    <Box sx={{ color: theme.palette.primary.main, mt: 0.3 }}>
-                      <PhoneIcon fontSize="small" />
-                    </Box>
-                    <Typography variant="body2">{selectedSite.phone}</Typography>
-                  </Stack>
-                )}
+                    {selectedSite.phone && (
+                      <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                        <Box sx={{ color: theme.palette.primary.main, mt: 0.3 }}>
+                          <PhoneIcon fontSize="small" />
+                        </Box>
+                        <Typography variant="body2">{selectedSite.phone}</Typography>
+                      </Stack>
+                    )}
 
-                {selectedSite.website && (
-                  <Stack direction="row" spacing={1}>
-                    <Box sx={{ color: theme.palette.primary.main, mt: 0.3 }}>
-                      <LanguageIcon fontSize="small" />
-                    </Box>
-                    <Typography variant="body2">
-                      <a
-                        href={selectedSite.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          color: theme.palette.primary.main,
-                          textDecoration: "none",
-                          fontWeight: 500
-                        }}
-                      >
-                        Visit Website
-                      </a>
-                    </Typography>
-                  </Stack>
+                    {selectedSite.website && (
+                      <Stack direction="row" spacing={1}>
+                        <Box sx={{ color: theme.palette.primary.main, mt: 0.3 }}>
+                          <LanguageIcon fontSize="small" />
+                        </Box>
+                        <Typography variant="body2">
+                          <a
+                            href={selectedSite.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              color: theme.palette.primary.main,
+                              textDecoration: "none",
+                              fontWeight: 500
+                            }}
+                          >
+                            Visit Website
+                          </a>
+                        </Typography>
+                      </Stack>
+                    )}
+                  </>
                 )}
               </Box>
 
@@ -825,79 +827,98 @@ const MapContainer = () => {
                 Details
               </Typography>
 
-              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 2 }}>
-                {selectedSite.operator && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Operator</Typography>
-                    <Typography variant="body2">{selectedSite.operator}</Typography>
-                  </Box>
-                )}
+              {!(
+                selectedSite.operator ||
+                selectedSite.fee ||
+                selectedSite.cuisine ||
+                selectedSite.artist_name ||
+                selectedSite.artwork_type ||
+                selectedSite.material ||
+                selectedSite.start_date ||
+                selectedSite.wheelchair
+              ) ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{
+                    textAlign: "center",
+                    fontStyle: "italic",
+                    py: 3,
+                    opacity: 0.7,
+                  }}
+                >
+                  No details currently available.
+                </Typography>
+              ) : (
+                <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 2 }}>
+                  {selectedSite.operator && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Operator</Typography>
+                      <Typography variant="body2">{selectedSite.operator}</Typography>
+                    </Box>
+                  )}
 
-                {selectedSite.fee && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Fee</Typography>
-                    <Typography variant="body2">{selectedSite.fee}</Typography>
-                  </Box>
-                )}
+                  {selectedSite.fee && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Fee</Typography>
+                      <Typography variant="body2">{selectedSite.fee}</Typography>
+                    </Box>
+                  )}
 
-                {selectedSite.cuisine && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Cuisine</Typography>
-                    <Typography variant="body2">{selectedSite.cuisine}</Typography>
-                  </Box>
-                )}
+                  {selectedSite.cuisine && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Cuisine</Typography>
+                      <Typography variant="body2">{selectedSite.cuisine}</Typography>
+                    </Box>
+                  )}
 
-                {selectedSite.artist_name && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Artist</Typography>
-                    <Typography variant="body2">{selectedSite.artist_name}</Typography>
-                  </Box>
-                )}
+                  {selectedSite.artist_name && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Artist</Typography>
+                      <Typography variant="body2">{selectedSite.artist_name}</Typography>
+                    </Box>
+                  )}
 
-                {selectedSite.artwork_type && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Artwork Type</Typography>
-                    <Typography variant="body2">{selectedSite.artwork_type}</Typography>
-                  </Box>
-                )}
+                  {selectedSite.artwork_type && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Artwork Type</Typography>
+                      <Typography variant="body2">{selectedSite.artwork_type}</Typography>
+                    </Box>
+                  )}
 
-                {selectedSite.material && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Material</Typography>
-                    <Typography variant="body2">{selectedSite.material}</Typography>
-                  </Box>
-                )}
+                  {selectedSite.material && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Material</Typography>
+                      <Typography variant="body2">{selectedSite.material}</Typography>
+                    </Box>
+                  )}
 
-                {selectedSite.start_date && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Year</Typography>
-                    <Typography variant="body2">{selectedSite.start_date}</Typography>
-                  </Box>
-                )}
+                  {selectedSite.start_date && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Year</Typography>
+                      <Typography variant="body2">{selectedSite.start_date}</Typography>
+                    </Box>
+                  )}
 
-                {selectedSite.wheelchair && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Wheelchair Access</Typography>
-                    <Typography variant="body2">{selectedSite.wheelchair}</Typography>
-                  </Box>
-                )}
-              </Box>
+                  {selectedSite.wheelchair && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Wheelchair Access</Typography>
+                      <Typography variant="body2">{selectedSite.wheelchair}</Typography>
+                    </Box>
+                  )}
+                </Box>
+              )}
 
               {/* Action button */}
               <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between' }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<DirectionsIcon />}
-                  sx={{ borderRadius: 2 }}
-                  href={`https://www.google.com/maps/dir/?api=1&destination=${selectedSite.address?.street},${selectedSite.address?.city}`}
-                  target="_blank"
-                >
-                  Get Directions
-                </Button>
 
                 <Button
                   variant="contained"
-                  startIcon={isFavorite(selectedSite._id) ? <FavoriteIcon color="error" /> : <FavoriteIcon />}
+                  startIcon={
+                    isFavorite(selectedSite._id)
+                      ? <FavoriteIcon sx={{ color: "#fff" }} /> // White heart on red background
+                      : <FavoriteIcon />
+                  }
                   sx={{
                     borderRadius: 2,
                     boxShadow: 2,

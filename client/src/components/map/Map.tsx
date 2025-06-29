@@ -6,7 +6,6 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
 import 'leaflet.markercluster/dist/leaflet.markercluster.js';
 
-import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import userLocationIcon from '../../assets/shooting-target-color-icon(1).svg'; // adjust the path as needed
 import { checkinToNearbySite } from '../../api/mapApi';
@@ -55,6 +54,8 @@ interface MapProps {
   setSelectedCategory: React.Dispatch<React.SetStateAction<string>>;
   categories: string[];
   setSelectedSite?: (site: any) => void; // <-- Add this prop
+  showCategoryFilter: boolean;
+
 }
 
 const Map: React.FC<MapProps> = ({
@@ -67,6 +68,7 @@ const Map: React.FC<MapProps> = ({
   setSelectedCategory,
   categories,
   setSelectedSite,
+  showCategoryFilter = true,
 }) => {
   const chemnitzCoordinates: [number, number] = [50.8621274, 12.9677156];
   const mapRef = useRef<L.Map | null>(null);
@@ -320,60 +322,64 @@ const Map: React.FC<MapProps> = ({
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       {/* Category filter overlay */}
-      <Paper
-        elevation={4}
-        sx={{
-          position: "absolute",
-          top: 24,
-          left: "50%",
-          transform: "translateX(-50%)",
-          zIndex: 1201,
-          px: 2,
-          py: 1,
-          borderRadius: 3,
-          background: theme.palette.mode === 'dark' ? "#23232b" : "#fff",
-          boxShadow: '0 2px 12px 0 rgba(0,0,0,0.10)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          minWidth: 200,
-          maxWidth: "90vw",
-          overflowX: "auto"
-        }}
-      >
-        <Stack direction="row" spacing={1} sx={{ width: "100%", overflowX: "auto" }}>
-          <Chip
-            label="All"
-            color={selectedCategory === "" ? "primary" : "default"}
-            onClick={() => setSelectedCategory("")}
-            sx={{
-              fontWeight: 600,
-              minWidth: 64,
-              cursor: 'pointer',
-              borderRadius: 2,
-              boxShadow: selectedCategory === "" ? 2 : 0,
-            }}
-          />
-          {categories.map(cat => (
+      {showCategoryFilter && (
+        <Paper
+          elevation={4}
+          sx={{
+            position: "absolute",
+            top: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 1201,
+            px: 2,
+            py: 1,
+            borderRadius: 3,
+            background: theme.palette.mode === 'dark' ? "#23232b" : "#fff",
+            boxShadow: '0 2px 12px 0 rgba(0,0,0,0.10)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            minWidth: 200,
+            maxWidth: "90vw",
+            overflowX: "auto"
+          }}
+        >
+          <Stack direction="row" spacing={1} sx={{ width: "100%", overflowX: "auto" }}>
             <Chip
-              key={cat}
-              label={cat.charAt(0).toUpperCase() + cat.slice(1).replace(/_/g, ' ')}
-              color={selectedCategory === cat ? "primary" : "default"}
-              onClick={() => setSelectedCategory(cat)}
+              label="All"
+              onClick={() => setSelectedCategory("")}
               sx={{
                 fontWeight: 600,
-                background: selectedCategory === cat ? CATEGORY_COLORS[cat] : "#f1f5f9",
-                color: selectedCategory === cat ? "#fff" : "#222",
                 minWidth: 64,
                 cursor: 'pointer',
                 borderRadius: 2,
-                boxShadow: selectedCategory === cat ? 2 : 0,
-                transition: "all 0.2s"
+                boxShadow: selectedCategory === "" ? 2 : 0,
+                background: selectedCategory === "" ? "#2563eb" : "#f1f5f9",
+                color: selectedCategory === "" ? "#fff" : "#222",
+                transition: "all 0.2s",
               }}
             />
-          ))}
-        </Stack>
-      </Paper>
+            {categories.map(cat => (
+              <Chip
+                key={cat}
+                label={cat.charAt(0).toUpperCase() + cat.slice(1).replace(/_/g, ' ')}
+                onClick={() => setSelectedCategory(cat)}
+                sx={{
+                  fontWeight: 600,
+                  background: selectedCategory === cat ? CATEGORY_COLORS[cat] : "#f1f5f9",
+                  color: selectedCategory === cat ? "#fff" : "#222",
+                  minWidth: 64,
+                  cursor: 'pointer',
+                  borderRadius: 2,
+                  boxShadow: selectedCategory === cat ? 2 : 0,
+                  transition: "all 0.2s",
+                }}
+              />
+            ))}
+          </Stack>
+
+        </Paper>
+      )}
       {/* Map */}
       <div id="map" style={{ width: "100%", height: "100%" }} />
       <Tooltip title="Go to my location" placement="left">

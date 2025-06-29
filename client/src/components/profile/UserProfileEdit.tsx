@@ -216,9 +216,14 @@ const UserProfileEdit: React.FC = () => {
                 width: "100%",
                 py: 3,
                 px: 3,
-                background: theme.palette.background.paper,
+                background: theme.palette.mode === 'dark'
+                    ? 'rgba(255, 255, 255, 0.05)' // Slightly lighter in dark mode
+                    : theme.palette.background.paper, // White in light mode
                 borderRadius: 3,
                 boxShadow: theme.shadows[1],
+                border: theme.palette.mode === 'dark'
+                    ? '1px solid rgba(255, 255, 255, 0.1)' // Subtle border in dark mode
+                    : 'none',
             }}
         >
             <Stack

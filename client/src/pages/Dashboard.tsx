@@ -35,11 +35,9 @@ import StarIcon from '@mui/icons-material/Star';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import DatasetIcon from '@mui/icons-material/Dataset';
 import { useAuth } from "../hooks/useAuth";
 import axios from "axios";
 import BadgeShowcase from "../components/badges/BadgeShowcase";
-import { useNavigate } from 'react-router-dom';
 import UserProfileEdit from "../components/profile/UserProfileEdit";
 import { simpleCache } from "../utils/simpleCache";
 
@@ -124,7 +122,6 @@ const Dashboard = () => {
     const [favoritesLoading, setFavoritesLoading] = useState(false);
     const [districtProgressLoading, setDistrictProgressLoading] = useState(false);
     const [districtProgressData, setDistrictProgressData] = useState<any[]>([]);
-    const [adminLoading, setAdminLoading] = useState(false);
     const [importGeojsonLoading, setImportGeojsonLoading] = useState(false);
     const [importDistrictsLoading, setImportDistrictsLoading] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
@@ -151,7 +148,6 @@ const Dashboard = () => {
                     return;
                 }
 
-                ('🔄 Fetching fresh dashboard progress');
                 const response = await axios.get('http://localhost:5000/api/progress/progress', {
                     withCredentials: true
                 });
@@ -198,7 +194,6 @@ const Dashboard = () => {
                 let cachedDistricts = simpleCache.get('districts-list');
 
                 if (cachedDistricts) {
-                    ('✅ Using cached districts list');
                     setDistricts(Array.isArray(cachedDistricts) ? cachedDistricts : []);
                     return;
                 }
@@ -230,13 +225,11 @@ const Dashboard = () => {
             let cachedDistrictSites = simpleCache.get(cacheKey);
 
             if (cachedDistrictSites) {
-                ('✅ Using cached district sites for:', districtName);
                 setDistrictSites(cachedDistrictSites);
                 setDialogOpen(true);
                 return;
             }
 
-            ('🔄 Fetching fresh district sites for:', districtName);
             const response = await axios.get(`http://localhost:5000/api/districts/${encodeURIComponent(districtName)}`);
 
             setDistrictSites(response.data);
@@ -244,7 +237,6 @@ const Dashboard = () => {
 
             // Cache for 10 minutes
             simpleCache.set(cacheKey, response.data, 10 * 60 * 1000);
-            ('💾 Cached district sites for:', districtName);
 
         } catch (err) {
             console.error(`Failed to fetch sites for district ${districtName}:`, err);
@@ -257,7 +249,6 @@ const Dashboard = () => {
 
     // Fetch favorite sites details with caching
     const handleFavoritesClick = async () => {
-        ('Favorites clicked, favorite sites:', progressData?.favoriteSites);
 
         if (!user) {
             ('No user, cannot fetch favorites');
@@ -266,7 +257,6 @@ const Dashboard = () => {
 
         // Check if we already have favorites data in progressData
         if (progressData?.favoriteSites?.length) {
-            ('✅ Using favorites from progress data');
             setFavoriteSites(progressData.favoriteSites);
             setFavoritesDialogOpen(true);
             return;
@@ -277,7 +267,6 @@ const Dashboard = () => {
         let cachedFavorites = simpleCache.get(cacheKey);
 
         if (cachedFavorites) {
-            ('✅ Using cached favorites');
             setFavoriteSites(cachedFavorites);
             setFavoritesDialogOpen(true);
             return;
@@ -286,8 +275,6 @@ const Dashboard = () => {
         // If no cached data and no favorites in progressData, fetch fresh
         try {
             setFavoritesLoading(true);
-            ('🔄 Fetching fresh favorites');
-
             const response = await axios.get('http://localhost:5000/api/favorites', {
                 withCredentials: true
             });
@@ -296,7 +283,6 @@ const Dashboard = () => {
 
             // Cache for 5 minutes (favorites change moderately often)
             simpleCache.set(cacheKey, response.data, 5 * 60 * 1000);
-            ('💾 Cached favorites');
 
         } catch (error) {
             console.error('Failed to fetch favorites:', error);
@@ -325,13 +311,11 @@ const Dashboard = () => {
                 let cachedDistrictProgress = simpleCache.get(cacheKey);
 
                 if (cachedDistrictProgress && Array.isArray(cachedDistrictProgress)) {
-                    ('✅ Using cached district progress');
                     setDistrictProgressData(cachedDistrictProgress);
                     setDistrictProgressLoading(false);
                     return;
                 }
 
-                ('🔄 Calculating fresh district progress');
                 await new Promise(resolve => setTimeout(resolve, 100));
 
                 const calculatedProgress = districts.map(district => {
@@ -389,7 +373,6 @@ const Dashboard = () => {
 
                 setDistrictProgressData(calculatedProgress);
                 simpleCache.set(cacheKey, calculatedProgress, 5 * 60 * 1000);
-                ('💾 Cached district progress');
 
             } catch (error) {
                 console.error('Error calculating district progress:', error);
@@ -816,7 +799,7 @@ const Dashboard = () => {
                                         height: 56,
                                         mx: 'auto',
                                         mb: 2,
-                                        bgcolor: 'rgba(255,255,255,0.2)',
+                                        bgcolor: 'rgba(22, 199, 179, 0.31)',
                                     }}
                                 >
                                     <EmojiEventsIcon sx={{ fontSize: 28 }} />
@@ -1133,58 +1116,82 @@ const Dashboard = () => {
                             </Typography>
                         </Stack>
 
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                            {visitedCount >= 5 && (
-                                <Chip
-                                    label="Explorer Badge - 5+ sites!"
-                                    color="primary"
-                                    icon={<EmojiEventsIcon />}
-                                    sx={{ mb: 1 }}
+                        {/* Check if there are any achievements */}
+                        {visitedCount < 5 &&
+                            (!progressData?.categoryProgress?.some(c => c.completed)) &&
+                            (!progressData?.districtProgress?.some(d => d.completed)) ? (
+                            // No achievements unlocked
+                            <Box textAlign="center" py={3}>
+                                <EmojiEventsIcon
+                                    sx={{
+                                        fontSize: 48,
+                                        color: 'text.secondary',
+                                        mb: 1,
+                                        opacity: 0.5
+                                    }}
                                 />
-                            )}
-                            {visitedCount >= 15 && (
-                                <Chip
-                                    label="Adventurer Badge - 15+ sites!"
-                                    color="success"
-                                    icon={<EmojiEventsIcon />}
-                                    sx={{ mb: 1 }}
-                                />
-                            )}
-                            {visitedCount >= 30 && (
-                                <Chip
-                                    label="Cultural Hero - 30+ sites!"
-                                    color="warning"
-                                    icon={<EmojiEventsIcon />}
-                                    sx={{ mb: 1 }}
-                                />
-                            )}
-                            {visitedCount >= 50 && (
-                                <Chip
-                                    label="Legend Status - 50+ sites!"
-                                    color="error"
-                                    icon={<EmojiEventsIcon />}
-                                    sx={{ mb: 1 }}
-                                />
-                            )}
-                            {progressData?.categoryProgress?.filter(c => c.completed).map(cat => (
-                                <Chip
-                                    key={cat.category}
-                                    label={`${cat.category.charAt(0).toUpperCase() + cat.category.slice(1)} Expert!`}
-                                    color="success"
-                                    icon={<CategoryIcon />}
-                                    sx={{ mb: 1 }}
-                                />
-                            ))}
-                            {progressData?.districtProgress?.filter(d => d.completed).map(district => (
-                                <Chip
-                                    key={district.district}
-                                    label={`${district.district} Explorer!`}
-                                    color="info"
-                                    icon={<MapIcon />}
-                                    sx={{ mb: 1 }}
-                                />
-                            ))}
-                        </Stack>
+                                <Typography variant="body1" color="text.secondary" fontWeight={500}>
+                                    No achievements unlocked yet
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                    Visit more sites to unlock achievements!
+                                </Typography>
+                            </Box>
+                        ) : (
+                            // Show achievements
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                {visitedCount >= 5 && (
+                                    <Chip
+                                        label="Explorer Badge - 5+ sites!"
+                                        color="primary"
+                                        icon={<EmojiEventsIcon />}
+                                        sx={{ mb: 1 }}
+                                    />
+                                )}
+                                {visitedCount >= 15 && (
+                                    <Chip
+                                        label="Adventurer Badge - 15+ sites!"
+                                        color="success"
+                                        icon={<EmojiEventsIcon />}
+                                        sx={{ mb: 1 }}
+                                    />
+                                )}
+                                {visitedCount >= 30 && (
+                                    <Chip
+                                        label="Cultural Hero - 30+ sites!"
+                                        color="warning"
+                                        icon={<EmojiEventsIcon />}
+                                        sx={{ mb: 1 }}
+                                    />
+                                )}
+                                {visitedCount >= 50 && (
+                                    <Chip
+                                        label="Legend Status - 50+ sites!"
+                                        color="error"
+                                        icon={<EmojiEventsIcon />}
+                                        sx={{ mb: 1 }}
+                                    />
+                                )}
+                                {progressData?.categoryProgress?.filter(c => c.completed).map(cat => (
+                                    <Chip
+                                        key={cat.category}
+                                        label={`${cat.category.charAt(0).toUpperCase() + cat.category.slice(1)} Expert!`}
+                                        color="success"
+                                        icon={<CategoryIcon />}
+                                        sx={{ mb: 1 }}
+                                    />
+                                ))}
+                                {progressData?.districtProgress?.filter(d => d.completed).map(district => (
+                                    <Chip
+                                        key={district.district}
+                                        label={`${district.district} Explorer!`}
+                                        color="info"
+                                        icon={<MapIcon />}
+                                        sx={{ mb: 1 }}
+                                    />
+                                ))}
+                            </Stack>
+                        )}
                     </CardContent>
                 </Card>
 

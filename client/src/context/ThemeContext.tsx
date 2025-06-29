@@ -15,22 +15,32 @@ const ThemeContext = createContext<ThemeContextType>({
 
 export const useThemeMode = () => useContext(ThemeContext);
 
-// Updated color palette
+// Modern, clean color palette
 const customColors = {
   primary: {
-    main: 'rgb(3, 166, 161)', // Teal
-    light: 'rgb(77, 182, 172)', // Light teal
-    dark: 'rgb(0, 121, 107)', // Dark teal
+    main: '#2563eb', // Modern blue
+    light: '#3b82f6',
+    dark: '#1d4ed8',
   },
   secondary: {
-    main: 'rgb(255, 79, 15)', // Orange
-    light: 'rgb(255, 166, 115)', // Light orange
-    dark: 'rgb(230, 70, 10)', // Dark orange
+    main: '#8b5cf6', // Purple
+    light: '#a78bfa',
+    dark: '#7c3aed',
   },
-  tertiary: {
-    main: 'rgb(255, 227, 187)', // Cream
-    light: 'rgb(255, 240, 220)', // Lighter cream
-    dark: 'rgb(240, 210, 160)', // Darker cream
+  success: {
+    main: '#10b981', // Green
+    light: '#34d399',
+    dark: '#059669',
+  },
+  error: {
+    main: '#ef4444', // Red
+    light: '#f87171',
+    dark: '#dc2626',
+  },
+  warning: {
+    main: '#f59e0b', // Amber
+    light: '#fbbf24',
+    dark: '#d97706',
   },
 };
 
@@ -64,28 +74,33 @@ export const ThemeModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       mode,
       primary: customColors.primary,
       secondary: customColors.secondary,
+      success: customColors.success,
+      error: customColors.error,
+      warning: customColors.warning,
       ...(mode === 'light'
         ? {
-          // Light mode
+          // Light mode - Clean and modern
           background: {
-            default: 'rgb(255, 227, 187)', // Cream background
+            default: '#f8fafc', // Very light gray
             paper: '#ffffff',
           },
           text: {
-            primary: 'rgb(37, 47, 63)', // Dark gray text
-            secondary: 'rgba(37, 47, 63, 0.7)',
+            primary: '#0f172a', // Almost black
+            secondary: '#64748b', // Medium gray
           },
+          divider: '#e2e8f0',
         }
         : {
-          // Dark mode
+          // Dark mode - Deep black
           background: {
-            default: 'rgb(37, 47, 63)', // Dark background
-            paper: 'rgba(37, 47, 63, 0.9)',
+            default: '#121212', // Dark black
+            paper: 'rgba(18, 18, 18, 0.95)', // Your specified black color
           },
           text: {
-            primary: 'rgb(255, 227, 187)', // Light text
-            secondary: 'rgba(255, 227, 187, 0.7)',
+            primary: '#f1f5f9', // Almost white
+            secondary: '#94a3b8', // Light gray
           },
+          divider: '#333333', // Darker divider for black theme
         }),
     },
     components: {
@@ -93,17 +108,19 @@ export const ThemeModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       MuiButton: {
         styleOverrides: {
           root: {
-            borderRadius: 12,
+            borderRadius: 8,
             textTransform: 'none',
             fontWeight: 600,
+            padding: '10px 20px',
           },
           contained: {
             background: customColors.primary.main,
             color: 'white',
-            boxShadow: '0 3px 15px 2px rgba(3, 166, 161, 0.3)',
+            boxShadow: '0 4px 14px 0 rgba(37, 99, 235, 0.25)',
             '&:hover': {
               background: customColors.primary.dark,
-              boxShadow: '0 5px 20px 3px rgba(3, 166, 161, 0.4)',
+              boxShadow: '0 6px 20px 0 rgba(37, 99, 235, 0.35)',
+              transform: 'translateY(-1px)',
             },
           },
           outlined: {
@@ -111,7 +128,9 @@ export const ThemeModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             color: customColors.primary.main,
             '&:hover': {
               borderColor: customColors.primary.dark,
-              background: 'rgba(3, 166, 161, 0.1)',
+              background: mode === 'light'
+                ? 'rgba(37, 99, 235, 0.05)'
+                : 'rgba(37, 99, 235, 0.1)',
             },
           },
         },
@@ -120,12 +139,12 @@ export const ThemeModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       MuiChip: {
         styleOverrides: {
           root: {
-            borderRadius: 8,
+            borderRadius: 6,
+            fontWeight: 500,
           },
           filled: {
             background: customColors.primary.main,
             color: 'white',
-            fontWeight: 600,
             '&:hover': {
               background: customColors.primary.dark,
             },
@@ -136,17 +155,39 @@ export const ThemeModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       MuiPaper: {
         styleOverrides: {
           root: {
-            borderRadius: 16,
+            borderRadius: 12,
             backdropFilter: 'blur(10px)',
+            border: mode === 'light'
+              ? '1px solid rgba(226, 232, 240, 0.8)'
+              : '1px solid rgba(51, 65, 85, 0.8)',
           },
         },
       },
-      // Customize AppBar (navbar) - no gradient
+      // Customize AppBar (navbar)
       MuiAppBar: {
         styleOverrides: {
           root: {
-            background: customColors.primary.main,
-            boxShadow: '0 2px 10px rgba(3, 166, 161, 0.2)',
+            borderRadius: 0,
+            border: 0,
+            background: mode === 'light'
+              ? '#ffffff'
+              : 'rgba(18, 18, 18, 0.95)', // Use your black color for AppBar too
+            color: mode === 'light'
+              ? '#0f172a'
+              : '#f1f5f9',
+            boxShadow: mode === 'light'
+              ? '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
+              : '0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          },
+        },
+      },
+      // Customize Card
+      MuiCard: {
+        styleOverrides: {
+          root: {
+            boxShadow: mode === 'light'
+              ? '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
+              : '0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
           },
         },
       },
