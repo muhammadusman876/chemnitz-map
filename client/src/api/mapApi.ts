@@ -1,7 +1,7 @@
 import axios from "axios";
 
 export const mapApi = axios.create({
-  baseURL: "http://localhost:5000/api/admin",
+  baseURL: "http://localhost:5000/api/culturalsites",
   withCredentials: true,
 });
 

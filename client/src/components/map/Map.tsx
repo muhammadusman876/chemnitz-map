@@ -12,13 +12,16 @@ import { checkinToNearbySite } from '../../api/mapApi';
 import { getMe } from '../../api/authApi';
 import { Fab, Tooltip, Chip, Stack, Paper, useTheme } from "@mui/material";
 import MyLocationIcon from "@mui/icons-material/MyLocation";
+import useMediaQuery from '@mui/material/useMediaQuery';
 
 const CATEGORY_COLORS: Record<string, string> = {
-  museum: '#2563eb',      // blue
-  restaurant: '#16a34a',  // green
+  museum: '#8A2D3B',      // deep wine red
+  gallery: '#14b8a6',     // teal
   artwork: '#f59e42',     // orange
   theatre: '#a21caf',     // purple
   hotel: '#e11d48',       // red
+  guest_house: '#fbbf24', // gold
+  restaurant: '#16a34a',  // green
   // ...add more as needed
 };
 
@@ -80,6 +83,7 @@ const Map: React.FC<MapProps> = ({
   // Store visited site IDs for the current user
   const [visitedSites, setVisitedSites] = useState<string[]>([]);
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Helper to compare coordinates
   const isSelected = (lat: number, lng: number) =>
@@ -160,6 +164,16 @@ const Map: React.FC<MapProps> = ({
       showCoverageOnHover: false,
       maxClusterRadius: 40,
       spiderfyOnMaxZoom: true,
+      iconCreateFunction: function (cluster) {
+        const count = cluster.getChildCount();
+        // Use your primary color or any color you want for the cluster circle
+        const color = '#574964';
+        return L.divIcon({
+          html: `<div style="background: ${color}; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.15); border: 3px solid #fff;"><span style='color: #fff; font-weight: bold; font-size: 1.1rem;'>${count}</span></div>`,
+          className: 'custom-cluster-icon',
+          iconSize: [40, 40],
+        });
+      },
     });
 
     // Add GeoJSON features as markers to the cluster group
@@ -327,20 +341,20 @@ const Map: React.FC<MapProps> = ({
           elevation={4}
           sx={{
             position: "absolute",
-            top: 24,
+            top: isMobile ? 12 : 24,
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 1201,
-            px: 2,
-            py: 1,
+            px: { xs: 1, sm: 2 },
+            py: { xs: 0.5, sm: 1 },
             borderRadius: 3,
             background: theme.palette.mode === 'dark' ? "#23232b" : "#fff",
             boxShadow: '0 2px 12px 0 rgba(0,0,0,0.10)',
             display: 'flex',
             alignItems: 'center',
             gap: 1,
-            minWidth: 200,
-            maxWidth: "90vw",
+            minWidth: 120,
+            maxWidth: "98vw",
             overflowX: "auto"
           }}
         >
@@ -350,7 +364,8 @@ const Map: React.FC<MapProps> = ({
               onClick={() => setSelectedCategory("")}
               sx={{
                 fontWeight: 600,
-                minWidth: 64,
+                minWidth: 56,
+                fontSize: { xs: 12, sm: 14 },
                 cursor: 'pointer',
                 borderRadius: 2,
                 boxShadow: selectedCategory === "" ? 2 : 0,
@@ -368,7 +383,8 @@ const Map: React.FC<MapProps> = ({
                   fontWeight: 600,
                   background: selectedCategory === cat ? CATEGORY_COLORS[cat] : "#f1f5f9",
                   color: selectedCategory === cat ? "#fff" : "#222",
-                  minWidth: 64,
+                  minWidth: 56,
+                  fontSize: { xs: 12, sm: 14 },
                   cursor: 'pointer',
                   borderRadius: 2,
                   boxShadow: selectedCategory === cat ? 2 : 0,
@@ -377,25 +393,27 @@ const Map: React.FC<MapProps> = ({
               />
             ))}
           </Stack>
-
         </Paper>
       )}
       {/* Map */}
       <div id="map" style={{ width: "100%", height: "100%" }} />
-      <Tooltip title="Go to my location" placement="left">
+      <Tooltip title="Go to my location" placement={isMobile ? "top" : "left"}>
         <Fab
           color="primary"
           onClick={handleLocateMe}
           sx={{
             position: "absolute",
-            bottom: 32,
-            right: 32,
+            bottom: isMobile ? 16 : 32,
+            right: isMobile ? 16 : 32,
             zIndex: 1000,
             boxShadow: 4,
+            width: { xs: 44, sm: 56 },
+            height: { xs: 44, sm: 56 },
+            minHeight: 0,
           }}
           aria-label="locate me"
         >
-          <MyLocationIcon />
+          <MyLocationIcon sx={{ fontSize: { xs: 22, sm: 28 } }} />
         </Fab>
       </Tooltip>
     </div>

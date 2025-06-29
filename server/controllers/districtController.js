@@ -1,5 +1,5 @@
 // filepath: d:\mern-auth-app\server\controllers\districtController.js
-import { importDistrictsAndUpdateSites } from "../utils/importDistricts.js";
+import District from "../models/District.js";
 import CulturalSite from "../models/CultureSite.js";
 import fs from "fs";
 import path from "path";
@@ -8,53 +8,61 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Import districts and assign to sites
-export const importDistricts = async (req, res) => {
+// Import districts from GeoJSON and save to District collection
+export const importDistrictsGeojson = async (req, res) => {
   try {
-    const result = await importDistrictsAndUpdateSites();
-
-    if (result.success) {
-      res.status(200).json({ message: result.message });
-    } else {
-      res.status(500).json({ error: result.error });
+    const geojsonPath = path.join(__dirname, "../data/Stadtteile.geojson");
+    if (!fs.existsSync(geojsonPath)) {
+      return res.status(404).json({ error: "District GeoJSON file not found" });
     }
+    const geojsonData = JSON.parse(fs.readFileSync(geojsonPath, "utf8"));
+    if (!geojsonData.features || !Array.isArray(geojsonData.features)) {
+      return res.status(400).json({ error: "Invalid GeoJSON format" });
+    }
+    let imported = 0;
+    for (const feature of geojsonData.features) {
+      const name = feature.properties?.STADTTNAME;
+      if (!name) continue;
+      // Upsert district document in District collection
+      await District.updateOne(
+        { name },
+        { $set: { name, geometry: feature.geometry } },
+        { upsert: true }
+      );
+      imported++;
+    }
+    res.status(200).json({
+      message: `Imported/updated ${imported} districts from GeoJSON to District collection.`,
+    });
   } catch (error) {
-    console.error("District import error:", error);
+    console.error("Error importing districts from GeoJSON:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
-// Get all district names
+// Get all districts from District collection
 export const getAllDistricts = async (req, res) => {
   try {
-    const districts = await CulturalSite.distinct("district");
-
-    // Count sites per district
-    const districtStats = [];
-    for (const district of districts) {
-      if (district) {
-        // Skip null/undefined districts
-        const count = await CulturalSite.countDocuments({ district });
-        districtStats.push({ name: district, siteCount: count });
-      }
-    }
-
-    res.json(districtStats);
+    const districts = await District.find({})
+      .select("name geometry siteCount")
+      .lean();
+    res.json(districts);
   } catch (error) {
     console.error("Error getting districts:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
-// Get sites by district
+// Get sites by district name (case-insensitive, trimmed)
 export const getSitesByDistrict = async (req, res) => {
   try {
     const { district } = req.params;
     if (!district) {
       return res.status(400).json({ error: "District name is required" });
     }
-
-    const sites = await CulturalSite.find({ district });
+    // Use case-insensitive, trimmed match
+    const regex = new RegExp(`^${district.trim()}$`, "i");
+    const sites = await CulturalSite.find({ district: { $regex: regex } });
     res.json(sites);
   } catch (error) {
     console.error("Error getting sites by district:", error);
@@ -62,59 +70,110 @@ export const getSitesByDistrict = async (req, res) => {
   }
 };
 
-// Get district GeoJSON data
+// Get district GeoJSON data from District collection
 export const getDistrictGeoJson = async (req, res) => {
   try {
-    // Set cache headers for longer caching
     res.set({
-      "Cache-Control": "public, max-age=3600", // Cache for 1 hour
+      "Cache-Control": "public, max-age=3600",
       "Content-Type": "application/json",
     });
-
-    // If you have a large GeoJSON file, consider:
-    const geojsonPath = path.join(__dirname, "../data/Stadtteile.geojson");
-
-    if (!fs.existsSync(geojsonPath)) {
-      return res.status(404).json({ error: "District GeoJSON file not found" });
-    }
-
-    const geojsonData = JSON.parse(fs.readFileSync(geojsonPath, "utf8"));
-
-    // Optional: Simplify the GeoJSON to reduce size
-    if (geojsonData.features && geojsonData.features.length > 0) {
-      geojsonData.features = geojsonData.features.map((feature) => ({
-        type: feature.type,
-        properties: {
-          // Only keep essential properties
-          STADTTNAME: feature.properties.STADTTNAME,
-          // Add any other essential properties you need
-        },
-        geometry: feature.geometry,
-      }));
-    }
-    res.json(geojsonData);
+    // Fetch all districts from DB
+    const districts = await District.find({
+      geometry: { $exists: true },
+    }).lean();
+    const features = districts.map((d) => ({
+      type: "Feature",
+      properties: {
+        STADTTNAME: d.name, // for compatibility with frontend
+        name: d.name,
+        siteCount: d.siteCount || 0,
+      },
+      geometry: d.geometry,
+    }));
+    const geojson = {
+      type: "FeatureCollection",
+      features,
+    };
+    res.json(geojson);
   } catch (error) {
-    console.error("Error fetching district GeoJSON:", error);
+    console.error("Error fetching district GeoJSON from DB:", error);
     res.status(500).json({ error: "Failed to fetch district GeoJSON" });
   }
 };
 
+// Get districts list for UI (name, siteCount) from District collection
 export const getDistrictsList = async (req, res) => {
   try {
-    // Set cache headers
     res.set({
-      "Cache-Control": "public, max-age=900", // Cache for 15 minutes
+      "Cache-Control": "public, max-age=900",
       "Content-Type": "application/json",
     });
-
-    // Get from database or file - make this as fast as possible
-    const districts = await CulturalSite.find({})
-      .select("name siteCount")
-      .lean();
-      
+    const districts = await District.find({}).select("name siteCount").lean();
     res.json(districts);
   } catch (error) {
     console.error("Error fetching districts list:", error);
     res.status(500).json({ error: "Failed to fetch districts list" });
+  }
+};
+
+// Assign districts to all sites based on coordinates and district polygons (admin only)
+export const assignDistrictsToSites = async (req, res) => {
+  try {
+    const districts = await District.find({
+      geometry: { $exists: true },
+    }).lean();
+    const sites = await CulturalSite.find({
+      "coordinates.lat": { $exists: true },
+      "coordinates.lng": { $exists: true },
+    });
+    let updated = 0;
+    // Point-in-polygon helpers
+    function isPointInPolygon(point, polygon) {
+      if (!polygon) return false;
+      if (polygon.type === "Polygon") {
+        return polygon.coordinates.some((ring) => pointInRing(point, ring));
+      } else if (polygon.type === "MultiPolygon") {
+        return polygon.coordinates.some((poly) =>
+          poly.some((ring) => pointInRing(point, ring))
+        );
+      }
+      return false;
+    }
+    function pointInRing(point, ring) {
+      let x = point[0],
+        y = point[1];
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        let xi = ring[i][0],
+          yi = ring[i][1];
+        let xj = ring[j][0],
+          yj = ring[j][1];
+        let intersect =
+          yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi || 1) + xi;
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+    for (const site of sites) {
+      const point = [site.coordinates.lng, site.coordinates.lat];
+      let foundDistrict = null;
+      for (const district of districts) {
+        if (district.geometry && isPointInPolygon(point, district.geometry)) {
+          foundDistrict = district.name;
+          break;
+        }
+      }
+      if (foundDistrict && site.district !== foundDistrict) {
+        await CulturalSite.updateOne(
+          { _id: site._id },
+          { $set: { district: foundDistrict } }
+        );
+        updated++;
+      }
+    }
+    res.json({ message: `Done. Updated ${updated} sites.` });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message });
   }
 };

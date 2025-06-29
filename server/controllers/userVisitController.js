@@ -176,7 +176,6 @@ export const getUserProgress = async (req, res) => {
     const userWithFavorites = await User.findById(userId).populate("favorites");
 
     if (!userVisit) {
-
       // Get all available categories and districts to show 0 progress
       const allCategories = await CulturalSite.distinct("category");
       const allDistricts = await CulturalSite.distinct("district");
@@ -280,27 +279,90 @@ export const getProgressMapData = async (req, res) => {
   }
 };
 
-// Get leaderboard data
+// Get monthly leaderboard data
 export const getLeaderboard = async (req, res) => {
   try {
-    // Get top users by badges
-    const userVisits = await UserVisit.find()
-      .sort({ totalBadges: -1 })
-      .limit(10)
-      .populate("userId", "username avatar");
+    // Get current month's start and end dates
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+      23,
+      59,
+      59
+    );
 
-    const leaderboard = userVisits.map((visit) => ({
-      username: visit.userId.username,
-      avatar: visit.userId.avatar,
-      totalBadges: visit.totalBadges,
-      visitedSites: visit.visitedSites.length,
-      completedCategories: visit.categoryProgress.filter((cp) => cp.completed)
-        .length,
-      completedDistricts: visit.districtProgress.filter((dp) => dp.completed)
-        .length,
-    }));
+    // Get users who have visited sites this month
+    const userVisits = await UserVisit.find({
+      "visitedSites.visitDate": {
+        $gte: startOfMonth,
+        $lte: endOfMonth,
+      },
+    })
+      .populate("userId", "username avatar")
+      .lean();
 
-    return res.json(leaderboard);
+    // Calculate monthly stats for each user
+    const leaderboard = userVisits
+      .map((visit) => {
+        // Filter visits to only this month
+        const monthlyVisits = visit.visitedSites.filter(
+          (v) =>
+            new Date(v.visitDate) >= startOfMonth &&
+            new Date(v.visitDate) <= endOfMonth
+        );
+
+        // Get latest visit date from this month
+        const latestVisit =
+          monthlyVisits.length > 0
+            ? new Date(
+                Math.max(...monthlyVisits.map((v) => new Date(v.visitDate)))
+              )
+            : null;
+
+        // Get first visit date (join date) - earliest visit ever
+        const joinDate =
+          visit.visitedSites.length > 0
+            ? new Date(
+                Math.min(
+                  ...visit.visitedSites.map((v) => new Date(v.visitDate))
+                )
+              )
+            : null;
+
+        return {
+          username: visit.userId.username,
+          avatar: visit.userId.avatar,
+          totalBadges: visit.totalBadges,
+          visitedSites: visit.visitedSites.length, // Total all-time visits
+          monthlyVisits: monthlyVisits.length, // This month's visits
+          completedCategories: visit.categoryProgress.filter(
+            (cp) => cp.completed
+          ).length,
+          completedDistricts: visit.districtProgress.filter(
+            (dp) => dp.completed
+          ).length,
+          latestVisitDate: latestVisit,
+          joinDate: joinDate, // First visit date as join date
+        };
+      })
+      .filter((user) => user.monthlyVisits > 0) // Only users with visits this month
+      .sort((a, b) => {
+        // Sort by monthly visits first, then by latest visit date
+        if (b.monthlyVisits !== a.monthlyVisits) {
+          return b.monthlyVisits - a.monthlyVisits;
+        }
+        return new Date(b.latestVisitDate) - new Date(a.latestVisitDate);
+      })
+      .slice(0, 10); // Top 10
+
+    return res.json({
+      leaderboard,
+      month: now.toLocaleString("default", { month: "long", year: "numeric" }),
+      totalActiveUsers: leaderboard.length,
+    });
   } catch (error) {
     console.error("Error getting leaderboard:", error);
     res.status(500).json({ error: error.message });

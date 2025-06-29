@@ -215,7 +215,18 @@ const DistrictMapView: React.FC<DistrictMapViewProps> = ({
 
     // Add district GeoJSON layer when data is loaded
     useEffect(() => {
-        if (!mapRef.current || !districtGeoJson || !progressData || !districts.length) return;
+        if (!mapRef.current || !districtGeoJson || !progressData || !districts.length) {
+            console.log('DistrictMapView debug:', {
+                hasMap: !!mapRef.current,
+                hasGeoJson: !!districtGeoJson,
+                geoJsonFeatures: districtGeoJson?.features?.length,
+                hasProgress: !!progressData,
+                districtsLength: districts.length,
+                districts,
+                districtGeoJson
+            });
+            return;
+        }
 
         // Remove loading control if it exists
         if (loadingControlRef.current) {
@@ -292,28 +303,33 @@ const DistrictMapView: React.FC<DistrictMapViewProps> = ({
                 style: getDistrictStyle,
                 onEachFeature: (feature, layer) => {
                     const originalDistrictName = feature.properties.STADTTNAME?.trim();
-                    const districtName = originalDistrictName.toLowerCase();
+                    const districtNameNorm = originalDistrictName.toLowerCase().trim();
 
-                    // Tooltip and click
+                    // Find districtData and progress using normalized names
                     const districtData = districts.find(
-                        d => d.name.trim().toLowerCase() === districtName
+                        d => d.name && d.name.toLowerCase().trim() === districtNameNorm
                     );
                     const districtProgress = progressData?.districtProgress?.find(
-                        (d: any) => d.district.trim().toLowerCase() === districtName
+                        (d: any) => d.district && d.district.toLowerCase().trim() === districtNameNorm
                     );
-                    let visitedCount = districtProgress?.visitedSites?.length || 0;
-                    let totalSites = districtData?.siteCount || 0;
 
-                    if (!districtProgress || visitedCount === 0) {
-                        const recentVisitsInDistrict = progressData?.recentVisits?.filter(
-                            (visit: any) => visit.site?.district && visit.site?.district.trim().toLowerCase() === districtName
-                        )?.length || 0;
-                        visitedCount = Math.max(visitedCount, recentVisitsInDistrict);
+                    // Visited count
+                    let visitedCount = districtProgress?.visitedSites?.length || 0;
+                    let totalSites = districtData?.siteCount || districtProgress?.totalSites || 0;
+
+                    // Fallback: count from recentVisits if visitedCount is 0
+                    if (!visitedCount && progressData?.recentVisits) {
+                        visitedCount = progressData.recentVisits.filter(
+                            (visit: any) => visit.site?.district && visit.site.district.toLowerCase().trim() === districtNameNorm
+                        ).length;
                     }
+
+                    // Fallback: if totalSites is still 0, show '?'
+                    const totalSitesDisplay = totalSites > 0 ? totalSites : '?';
 
                     layer.bindTooltip(
                         `<strong>${districtData?.name || originalDistrictName}</strong><br>
-                        Explored: ${visitedCount}/${totalSites > 0 ? totalSites : '?'} sites`
+                        Explored: ${visitedCount}/${totalSitesDisplay} sites`
                     );
 
                     layer.on('click', () => {

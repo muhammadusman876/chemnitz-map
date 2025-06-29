@@ -22,13 +22,13 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import MapIcon from '@mui/icons-material/Map';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
-import DirectionsIcon from '@mui/icons-material/Directions';
-import FavoriteIcon from '@mui/icons-material/Favorite';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import SearchOffIcon from '@mui/icons-material/SearchOff';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import PhoneIcon from '@mui/icons-material/Phone';
 import LanguageIcon from '@mui/icons-material/Language';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SearchOffIcon from '@mui/icons-material/SearchOff';
+import FavoriteIcon from '@mui/icons-material/Favorite';
+import useMediaQuery from '@mui/material/useMediaQuery';
 
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
@@ -36,12 +36,22 @@ import { simpleCache } from '../../utils/simpleCache';
 
 const NAVBAR_HEIGHT = 64;
 
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debounced;
+}
+
 const MapContainer = () => {
   const [geoJsonData, setGeoJsonData] = useState<any>(null);
   const [selectedCoords, setSelectedCoords] = useState<[number, number] | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState<string>('');
+  const debouncedSearch = useDebouncedValue(search, 200);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -51,6 +61,7 @@ const MapContainer = () => {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const searchRef = useRef<HTMLInputElement>(null);
   const [districtFilter, setDistrictFilter] = useState<string | null>(null);
 
@@ -68,7 +79,7 @@ const MapContainer = () => {
 
       // Cache miss - fetch fresh
       try {
-        const response = await fetch('http://localhost:5000/api/admin/');
+        const response = await fetch('http://localhost:5000/api/culturalsites/');
         const sites = await response.json();
 
         // Extract categories with proper type checking
@@ -97,70 +108,42 @@ const MapContainer = () => {
   useEffect(() => {
     const loadSites = async () => {
       setLoading(true);
-
       try {
-        // If district filter is active, load district-specific data
         if (districtFilter) {
-
-          // Try cache first for district data
           const cacheKey = `district-${districtFilter}`;
           let districtSites = simpleCache.get(cacheKey);
-
-          if (districtSites) {
-          } else {
-
+          if (!districtSites) {
             try {
-              // Cache miss - fetch fresh district data
-              const response = await fetch(`http://localhost:5000/api/districts/${encodeURIComponent(districtFilter)}`);
-
-              if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-              }
-
+              const response = await fetch(`http://localhost:5000/api/districts/${encodeURIComponent(districtFilter.trim())}`);
+              if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
               districtSites = await response.json();
-
-              // Only cache if we got valid data
               if (districtSites && Array.isArray(districtSites)) {
-                simpleCache.set(cacheKey, districtSites, 10 * 60 * 1000); // 10 minutes cache for districts
+                simpleCache.set(cacheKey, districtSites, 10 * 60 * 1000);
               } else {
-                console.warn('⚠️ Invalid district data received:', districtSites);
-                districtSites = []; // Fallback to empty array
+                districtSites = [];
               }
             } catch (fetchError) {
-              console.error('❌ Failed to fetch district data:', fetchError);
-
-              // Try to get from all-sites cache as fallback
-              ('🔄 Trying fallback: filtering from all-sites cache');
               let allSites = simpleCache.get('all-sites');
-
               if (!allSites) {
-                const allSitesResponse = await fetch('http://localhost:5000/api/admin/');
+                const allSitesResponse = await fetch('http://localhost:5000/api/culturalsites/');
                 allSites = await allSitesResponse.json();
                 simpleCache.set('all-sites', allSites);
               }
-
-              // Filter by district from all sites
+              // Prefer filtering by site.district if available
               districtSites = allSites.filter((site: any) =>
-                site.address &&
-                site.address.city &&
-                site.address.city.toLowerCase().includes(districtFilter.toLowerCase())
+                (site.district && site.district.trim().toLowerCase() === districtFilter.trim().toLowerCase()) ||
+                (site.address && site.address.city && site.address.city.toLowerCase().includes(districtFilter.toLowerCase()))
               );
-
-              // Cache the filtered result
               simpleCache.set(cacheKey, districtSites, 10 * 60 * 1000);
             }
           }
-
-          // Apply search filter if active (but NOT category filter for district view)
           let filteredSites = districtSites;
-          if (search) {
+          if (debouncedSearch) {
             filteredSites = districtSites.filter((site: any) =>
-              site.name.toLowerCase().includes(search.toLowerCase()) ||
-              site.description?.toLowerCase().includes(search.toLowerCase())
+              site.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+              site.description?.toLowerCase().includes(debouncedSearch.toLowerCase())
             );
           }
-
-          // Convert to GeoJSON
           const features = filteredSites
             .filter((site: any) =>
               site.coordinates &&
@@ -176,42 +159,24 @@ const MapContainer = () => {
               properties: { ...site },
               id: site._id
             }));
-
-          setGeoJsonData({
-            type: "FeatureCollection",
-            features
-          });
+          setGeoJsonData({ type: "FeatureCollection", features });
         } else {
-          // Regular all-sites loading with category and search filtering
           let allSites = simpleCache.get('all-sites');
-
-          // If no cache, fetch fresh
           if (!allSites) {
-            ('🔄 Fetching fresh all-sites data');
-            const response = await fetch('http://localhost:5000/api/admin/');
+            const response = await fetch('http://localhost:5000/api/culturalsites/');
             allSites = await response.json();
-            simpleCache.set('all-sites', allSites, 10 * 60 * 1000); // 10 minutes cache
-          } else {
-            ('✅ Using cached all-sites data');
+            simpleCache.set('all-sites', allSites, 10 * 60 * 1000);
           }
-
-          // Filter locally instead of API calls
           let filteredSites = allSites;
-
           if (selectedCategory) {
-            filteredSites = allSites.filter((site: any) =>
-              site.category === selectedCategory
-            );
+            filteredSites = allSites.filter((site: any) => site.category === selectedCategory);
           }
-
-          if (search) {
+          if (debouncedSearch) {
             filteredSites = filteredSites.filter((site: any) =>
-              site.name.toLowerCase().includes(search.toLowerCase()) ||
-              site.description?.toLowerCase().includes(search.toLowerCase())
+              site.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+              site.description?.toLowerCase().includes(debouncedSearch.toLowerCase())
             );
           }
-
-          // Convert to GeoJSON
           const features = filteredSites
             .filter((site: any) =>
               site.coordinates &&
@@ -227,23 +192,16 @@ const MapContainer = () => {
               properties: { ...site },
               id: site._id
             }));
-
-          setGeoJsonData({
-            type: "FeatureCollection",
-            features
-          });
+          setGeoJsonData({ type: "FeatureCollection", features });
         }
-
       } catch (error) {
-        console.error('❌ Error loading sites:', error);
         setError('Failed to load sites');
       } finally {
         setLoading(false);
       }
     };
-
     loadSites();
-  }, [selectedCategory, search, districtFilter]); // Added districtFilter to dependencies
+  }, [selectedCategory, debouncedSearch, districtFilter]); // Use debouncedSearch
 
   // Fetch progress data when view mode changes to districts
   useEffect(() => {
@@ -256,14 +214,14 @@ const MapContainer = () => {
       }
 
       // Cache miss - fetch fresh progress data
-      axios.get('http://localhost:5000/api/progress/progress', {
+      axios.get('http://localhost:5000/api/progress/current-progress', {
         withCredentials: true
       })
         .then(response => {
           setProgressData(response.data);
           simpleCache.set('user-progress', response.data, 2 * 60 * 1000); // 2 minutes cache for progress
         })
-        .catch(err => {
+        .catch(() => {
           const defaultProgress = {
             totalVisits: 0,
             totalBadges: 0,
@@ -278,8 +236,10 @@ const MapContainer = () => {
 
   // Focus search on mount for better UX
   useEffect(() => {
-    searchRef.current?.focus();
-  }, []);
+    if (viewMode === 'sites' && !selectedSite) {
+      searchRef.current?.focus();
+    }
+  }, [viewMode, selectedSite]);
 
   // Check for preferred mode from Dashboard
   useEffect(() => {
@@ -308,7 +268,7 @@ const MapContainer = () => {
         setFavorites(favoriteIds);
         simpleCache.set('user-favorites', favoriteIds, 3 * 60 * 1000); // 3 minutes cache for favorites
       })
-      .catch(error => {
+      .catch(() => {
         setIsLoggedIn(false);
       });
   }, []);
@@ -328,16 +288,11 @@ const MapContainer = () => {
     }
   };
 
-  // FIXED: Handle district click properly - clear filters and set district
+  // Handle district click: fetch and cache sites for the selected district (like Dashboard)
   const handleDistrictClick = async (district: string) => {
-    // Clear all filters first
     setSelectedCategory('');
     setSearch('');
-
-    // Set district filter to load district-specific sites
-    setDistrictFilter(district);
-
-    // Switch to sites view to show the district's sites
+    setDistrictFilter(district.trim());
     setViewMode('sites');
   };
 
@@ -389,26 +344,26 @@ const MapContainer = () => {
       sx={{
         position: "relative",
         width: "100%",
-        height: { xs: `calc(100vh - ${NAVBAR_HEIGHT}px)`, sm: `calc(100vh - ${NAVBAR_HEIGHT}px)` },
+        height: { xs: `calc(100vh - ${NAVBAR_HEIGHT - 8}px)`, sm: `calc(100vh - ${NAVBAR_HEIGHT}px)` },
         overflow: "hidden",
         m: 0,
         p: 0,
         background: "#f8fafc",
         display: "flex",
-        flexDirection: "row",
+        flexDirection: isMobile ? "column" : "row",
       }}
     >
       {/* Sidebar with search and list */}
       <Box
         sx={{
-          width: { xs: "100vw", sm: 370, md: 400 },
+          width: isMobile ? "100vw" : { xs: "100vw", sm: 370, md: 400 },
           maxWidth: 420,
-          minWidth: { sm: 280, md: 340 },
-          height: "100%",
+          minWidth: isMobile ? 0 : { sm: 280, md: 340 },
+          height: isMobile ? 'auto' : "100%",
           zIndex: 1200,
           background: theme.palette.background.paper,
-          borderRight: { sm: "1px solid #e0e7ef" },
-          boxShadow: { sm: 3 },
+          borderRight: !isMobile ? { sm: "1px solid #e0e7ef" } : undefined,
+          boxShadow: !isMobile ? { sm: 3 } : undefined,
           display: "flex",
           flexDirection: "column",
         }}
@@ -543,7 +498,7 @@ const MapContainer = () => {
         </Box>
 
         {/* Scrollable Content Area */}
-        <Box sx={{ flex: 1, overflowY: 'auto', px: 2 }}>
+        <Box sx={{ flex: 1, overflowY: 'auto', px: { xs: 0.5, sm: 2 } }}>
           {error ? (
             <Alert severity="error" sx={{ borderRadius: 2, my: 2 }}>
               {error}
@@ -641,7 +596,7 @@ const MapContainer = () => {
       </Box>
 
       {/* Map */}
-      <Box sx={{ flex: 1, height: "100%", position: "relative" }}>
+      <Box sx={{ flex: 1, height: isMobile ? 320 : "100%", position: "relative" }}>
         {viewMode === 'sites' ? (
           <Map
             geoJsonData={geoJsonData}
@@ -666,14 +621,14 @@ const MapContainer = () => {
 
       {/* Details Drawer - Rest of component stays the same */}
       <Drawer
-        anchor="left"
+        anchor={isMobile ? "bottom" : "left"}
         open={!!selectedSite}
         onClose={() => setSelectedSite(null)}
         PaperProps={{
           sx: {
-            width: { xs: "100vw", sm: 380, md: 420 },
-            maxWidth: "90vw",
-            borderRadius: { xs: 0, sm: "0 16px 16px 0" },
+            width: isMobile ? "100vw" : { xs: "100vw", sm: 380, md: 420 },
+            maxWidth: "98vw",
+            borderRadius: isMobile ? 0 : { xs: 0, sm: "0 16px 16px 0" },
             p: 0,
             background: theme.palette.background.paper,
             boxShadow: "0 10px 40px rgba(0,0,0,0.12)"

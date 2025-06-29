@@ -5,17 +5,16 @@ import geojsonToMongoDoc from "../utils/geojsonToMongoDoc.js";
 import { getPlaceName } from "../utils/reverse.js";
 import User from "../models/User.js";
 import getDistanceFromLatLonInMeters from "../utils/distanceFromLatLon.js";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export const importGeojson = async (req, res) => {
   try {
-    const filePath = path.resolve(
-      "..",
-      "client",
-      "public",
-      "data",
-      "Chemnitz.geojson"
-    );
-    const rawData = fs.readFileSync(filePath, "utf-8");
+    // Use new path for Chemnitz.geojson in server/data
+    const geojsonPath = path.join(__dirname, "../data/Chemnitz.geojson");
+    const rawData = fs.readFileSync(geojsonPath, "utf-8");
     const geojson = JSON.parse(rawData);
 
     // Feature engineering: Add names using reverse geocoding if missing
@@ -174,7 +173,6 @@ export const checkinToNearbySite = async (req, res) => {
 
 export const deleteAllSites = async (req, res) => {
   try {
-    
     const result = await CulturalSite.deleteMany({});
 
     res.json({

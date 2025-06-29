@@ -9,7 +9,7 @@ export const backgroundDataLoader = {
         ("🔄 Preloading data in background...");
 
         // Load all sites
-        const sitesResponse = await fetch("http://localhost:5000/api/admin/");
+        const sitesResponse = await fetch("http://localhost:5000/api/culturalsites/");
         const sites = await sitesResponse.json();
         simpleCache.set("all-sites", sites);
 
@@ -19,7 +19,6 @@ export const backgroundDataLoader = {
         );
         simpleCache.set("categories", categories);
 
-        ("✅ Background data loaded!");
       } catch (error) {
         console.warn("❌ Background loading failed:", error);
       }

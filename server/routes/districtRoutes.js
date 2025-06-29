@@ -1,9 +1,10 @@
 import express from "express";
 import {
-  importDistricts,
+  importDistrictsGeojson,
   getAllDistricts,
   getSitesByDistrict,
   getDistrictGeoJson,
+  assignDistrictsToSites,
 } from "../controllers/districtController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -15,6 +16,7 @@ router.get("/geojson", getDistrictGeoJson);
 router.get("/:district", getSitesByDistrict);
 
 // Admin-only routes
-router.post("/import", authMiddleware, importDistricts);
+router.post("/import", authMiddleware, importDistrictsGeojson);
+router.post("/assign-districts", authMiddleware, assignDistrictsToSites);
 
 export default router;

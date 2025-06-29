@@ -32,10 +32,10 @@ app.use(
 app.use(express.json());
 
 // Routes
-app.use("/api/admin", geojsonRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api/progress", userVisitRoutes);
+app.use("/api/culturalsites", geojsonRoutes);
 app.use("/api/districts", districtRoutes);
+app.use("/api/progress", userVisitRoutes);
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.use("/api/favorites", favoriteRoutes);
 
@@ -45,5 +45,5 @@ app.get("/", (req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () =>     console.log(`🚀 Server running on port ${PORT}`)
+app.listen(PORT, () =>     console.log(`Server running on port ${PORT}`)
 );

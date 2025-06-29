@@ -291,9 +291,9 @@ const UserProfileEdit: React.FC = () => {
                             </ListItemIcon>
                             <ListItemText>Upload new photo</ListItemText>
                         </MenuItem>
-
-                        {user?.avatar && (
+                        {user?.avatar && [
                             <MenuItem
+                                key="remove-photo"
                                 onClick={handleAvatarRemove}
                                 sx={{ color: 'error.main' }}
                             >
@@ -302,7 +302,7 @@ const UserProfileEdit: React.FC = () => {
                                 </ListItemIcon>
                                 <ListItemText>Remove photo</ListItemText>
                             </MenuItem>
-                        )}
+                        ]}
                     </Menu>
 
                     <input

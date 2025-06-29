@@ -127,6 +127,8 @@ const Dashboard = () => {
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [importStatus, setImportStatus] = useState<string | null>(null);
     const [deleteStatus, setDeleteStatus] = useState<string | null>(null);
+    const [assignDistrictsLoading, setAssignDistrictsLoading] = useState(false);
+    const [assignDistrictsStatus, setAssignDistrictsStatus] = useState<string | null>(null);
 
     // Fetch user progress with caching
     useEffect(() => {
@@ -148,7 +150,7 @@ const Dashboard = () => {
                     return;
                 }
 
-                const response = await axios.get('http://localhost:5000/api/progress/progress', {
+                const response = await axios.get('http://localhost:5000/api/progress/current-progress', {
                     withCredentials: true
                 });
 
@@ -397,7 +399,7 @@ const Dashboard = () => {
             setImportStatus('Importing GeoJSON data...');
 
             const response = await axios.post(
-                'http://localhost:5000/api/admin/import-geojson',
+                'http://localhost:5000/api/culturalsites/import-geojson',
                 {},
                 { withCredentials: true }
             );
@@ -448,7 +450,7 @@ const Dashboard = () => {
             setDeleteStatus('Deleting all cultural sites...');
 
             const response = await axios.delete(
-                'http://localhost:5000/api/admin/sites',
+                'http://localhost:5000/api/culturalsites/sites',
                 { withCredentials: true }
             );
 
@@ -525,6 +527,34 @@ const Dashboard = () => {
         }
     };
 
+    // Assign districts to sites
+    const handleAssignDistricts = async () => {
+        if (user?.role !== 'admin') {
+            setAssignDistrictsStatus('Unauthorized: Admin access required');
+            return;
+        }
+        try {
+            setAssignDistrictsLoading(true);
+            setAssignDistrictsStatus('Assigning districts to sites...');
+            const response = await axios.post(
+                'http://localhost:5000/api/districts/assign-districts',
+                {},
+                { withCredentials: true }
+            );
+            setAssignDistrictsStatus(response.data.message || 'Districts assigned successfully');
+            simpleCache.clear();
+            setTimeout(() => window.location.reload(), 2000);
+        } catch (error: any) {
+            console.error('Assign districts failed:', error);
+            setAssignDistrictsStatus(
+                error.response?.data?.error || 'Failed to assign districts'
+            );
+        } finally {
+            setAssignDistrictsLoading(false);
+            setTimeout(() => setAssignDistrictsStatus(null), 10000);
+        }
+    };
+
     if (loading) {
         return (
             <Box
@@ -574,20 +604,22 @@ const Dashboard = () => {
     return (
         <Box sx={{
             width: '100%',
-            p: { xs: 2, md: 4 },
+            p: { xs: 1, sm: 2, md: 4 },
             bgcolor: 'background.default',
-            minHeight: 'calc(100vh - 64px)',
+            minHeight: { xs: 'calc(100vh - 56px)', sm: 'calc(100vh - 64px)' },
+            boxSizing: 'border-box',
         }}>
             {/* Content container with max width */}
-            <Box sx={{ maxWidth: 1200, mx: "auto" }}>
+            <Box sx={{ maxWidth: 1200, mx: "auto", px: { xs: 0.5, sm: 2 } }}>
                 {/* Header Section */}
-                <Box sx={{ mb: 4 }}>
+                <Box sx={{ mb: { xs: 2, sm: 4 } }}>
                     <Typography
                         variant="h3"
                         fontWeight={700}
                         textAlign="center"
                         sx={{
-                            mb: 2,
+                            mb: { xs: 1, sm: 2 },
+                            fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
                             background: `linear-gradient(45deg, ${theme.palette.primary.main} 30%, ${theme.palette.secondary.main} 90%)`,
                             backgroundClip: 'text',
                             WebkitBackgroundClip: 'text',
@@ -601,7 +633,7 @@ const Dashboard = () => {
                         variant="h6"
                         color="text.secondary"
                         textAlign="center"
-                        sx={{ mb: 3 }}
+                        sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '1rem', sm: '1.25rem' } }}
                     >
                         Track your exploration progress and discover new cultural sites
                     </Typography>
@@ -723,10 +755,36 @@ const Dashboard = () => {
                                             </CardContent>
                                         </Card>
                                     </Grid>
+
+                                    {/* Assign Districts Section */}
+                                    <Grid xs={12} md={3}>
+                                        <Card sx={{ bgcolor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
+                                            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                                                <Button
+                                                    variant="contained"
+                                                    startIcon={assignDistrictsLoading ? <CircularProgress size={20} color="inherit" /> : <MapIcon />}
+                                                    onClick={handleAssignDistricts}
+                                                    disabled={importGeojsonLoading || importDistrictsLoading || deleteLoading || assignDistrictsLoading}
+                                                    sx={{
+                                                        bgcolor: 'rgba(59, 130, 246, 0.9)',
+                                                        '&:hover': { bgcolor: 'rgba(59, 130, 246, 1)' },
+                                                        '&:disabled': { bgcolor: 'rgba(100, 100, 100, 0.5)' },
+                                                        mb: 1,
+                                                        minWidth: 150
+                                                    }}
+                                                >
+                                                    {assignDistrictsLoading ? 'Assigning...' : 'Assign Districts'}
+                                                </Button>
+                                                <Typography variant="caption" display="block" sx={{ opacity: 0.8 }}>
+                                                    Assign districts to all sites
+                                                </Typography>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
                                 </Grid>
 
                                 {/* Status Messages */}
-                                {(importStatus || deleteStatus) && (
+                                {(importStatus || deleteStatus || assignDistrictsStatus) && (
                                     <Box sx={{ mt: 3 }}>
                                         {importStatus && (
                                             <Paper
@@ -765,6 +823,24 @@ const Dashboard = () => {
                                                 </Typography>
                                             </Paper>
                                         )}
+                                        {assignDistrictsStatus && (
+                                            <Paper
+                                                sx={{
+                                                    p: 2,
+                                                    bgcolor: assignDistrictsStatus.includes('failed') || assignDistrictsStatus.includes('Unauthorized')
+                                                        ? 'rgba(239, 68, 68, 0.1)'
+                                                        : 'rgba(59, 130, 246, 0.1)',
+                                                    border: assignDistrictsStatus.includes('failed') || assignDistrictsStatus.includes('Unauthorized')
+                                                        ? '1px solid rgba(239, 68, 68, 0.3)'
+                                                        : '1px solid rgba(59, 130, 246, 0.3)',
+                                                    borderRadius: 2
+                                                }}
+                                            >
+                                                <Typography variant="body2" color="white">
+                                                    🗺️ Assign Districts: {assignDistrictsStatus}
+                                                </Typography>
+                                            </Paper>
+                                        )}
                                     </Box>
                                 )}
                             </CardContent>
@@ -781,7 +857,7 @@ const Dashboard = () => {
                 </Box>
 
                 {/* Stats Overview Cards - Fix Grid item prop */}
-                <Grid container spacing={3} sx={{ mb: 4 }}>
+                <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: { xs: 2, sm: 4 } }}>
                     {/* Rank Card */}
                     <Grid xs={12} sm={6} md={3}>
                         <Card
@@ -905,11 +981,11 @@ const Dashboard = () => {
                 </Grid>
 
                 {/* Progress Section */}
-                <Grid container spacing={3} sx={{ mb: 4 }}>
+                <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: { xs: 2, sm: 4 } }}>
                     {/* Category Progress */}
                     <Grid xs={12} md={6}>
                         <Card sx={{ borderRadius: 3, height: '100%' }}>
-                            <CardContent sx={{ p: 3 }}>
+                            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                                 <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
                                     <CategoryIcon color="primary" />
                                     <Typography variant="h6" fontWeight={600}>
@@ -932,7 +1008,6 @@ const Dashboard = () => {
                                     <Stack spacing={3}>
                                         {progressData.categoryProgress.map((category) => {
                                             if (!category || !category.category) return null;
-
                                             return (
                                                 <Box key={category.category}>
                                                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
@@ -985,7 +1060,7 @@ const Dashboard = () => {
                     {/* District Progress */}
                     <Grid xs={12} md={6}>
                         <Card sx={{ borderRadius: 3, height: '100%' }}>
-                            <CardContent sx={{ p: 3 }}>
+                            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                                 <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
                                     <MapIcon color="primary" />
                                     <Typography variant="h6" fontWeight={600}>
@@ -1107,8 +1182,8 @@ const Dashboard = () => {
                 </Grid>
 
                 {/* Achievements Section */}
-                <Card sx={{ borderRadius: 3, mb: 4 }}>
-                    <CardContent sx={{ p: 3 }}>
+                <Card sx={{ borderRadius: 3, mb: { xs: 2, sm: 4 } }}>
+                    <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
                             <TrendingUpIcon color="primary" />
                             <Typography variant="h6" fontWeight={600}>
@@ -1196,8 +1271,8 @@ const Dashboard = () => {
                 </Card>
 
                 {/* Badge Showcase */}
-                <Card sx={{ borderRadius: 3, mb: 4 }}>
-                    <CardContent sx={{ p: 3 }}>
+                <Card sx={{ borderRadius: 3, mb: { xs: 2, sm: 4 } }}>
+                    <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                         <Typography variant="h6" fontWeight={600} gutterBottom>
                             Badge Collection
                         </Typography>
@@ -1211,7 +1286,7 @@ const Dashboard = () => {
                 {/* Recent Visits - Fix null check */}
                 {progressData?.recentVisits && progressData.recentVisits.length > 0 && (
                     <Card sx={{ borderRadius: 3 }}>
-                        <CardContent sx={{ p: 3 }}>
+                        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                             <Typography variant="h6" fontWeight={600} gutterBottom>
                                 Recent Visits
                             </Typography>
@@ -1263,7 +1338,7 @@ const Dashboard = () => {
                     maxWidth="md"
                     fullWidth
                     PaperProps={{
-                        sx: { borderRadius: 3 }
+                        sx: { borderRadius: 3, m: { xs: 1, sm: 3 } }
                     }}
                 >
                     <DialogTitle>
@@ -1407,7 +1482,7 @@ const Dashboard = () => {
                     maxWidth="md"
                     fullWidth
                     PaperProps={{
-                        sx: { borderRadius: 3 }
+                        sx: { borderRadius: 3, m: { xs: 1, sm: 3 } }
                     }}
                 >
                     <DialogTitle>
@@ -1517,7 +1592,6 @@ const Dashboard = () => {
                                                     <LocationOnIcon color="warning" sx={{ fontSize: 16 }} />
                                                 </Stack>
                                             </ListItemIcon>
-                                            // Replace the problematic section in your favorites dialog with this corrected code:
 
                                             <ListItemText
                                                 primary={

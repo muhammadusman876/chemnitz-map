@@ -13,6 +13,7 @@ import {
     useTheme,
 } from '@mui/material';
 import PlaceIcon from '@mui/icons-material/Place';
+import useMediaQuery from '@mui/material/useMediaQuery';
 
 interface CulturalSite {
     _id: string;
@@ -51,13 +52,13 @@ type CulturalSitesListProps = {
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-    museum: '#2563eb',
-    restaurant: '#16a34a',
-    artwork: '#f59e42',
-    theatre: '#a21caf',
-    hotel: '#e11d48',
-    guest_house: '#0ea5e9',
-    gallery: '#f97316',
+    museum: '#8A2D3B',      // deep wine red
+    gallery: '#14b8a6',     // teal
+    artwork: '#f59e42',     // orange
+    theatre: '#a21caf',     // purple
+    hotel: '#e11d48',       // red
+    guest_house: '#fbbf24', // gold
+    restaurant: '#16a34a',  // green
     // ...add more as needed
 };
 
@@ -69,6 +70,7 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
     paginationLimit = 200,
 }) => {
     const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
     const isAllMode = !search && !selectedCategory;
     const displayedSites = isAllMode
@@ -83,13 +85,13 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                 <Box
                     sx={{
                         mb: 2,
-                        px: 2,
-                        py: 1,
+                        px: { xs: 1, sm: 2 },
+                        py: { xs: 0.5, sm: 1 },
                         borderRadius: 2,
                         background: theme.palette.mode === 'dark' ? '#23232b' : '#e0e7ef',
                         color: theme.palette.mode === 'dark' ? '#fff' : '#222',
                         fontStyle: 'italic',
-                        fontSize: 15,
+                        fontSize: { xs: 13, sm: 15 },
                         fontWeight: 500,
                         textAlign: 'center',
                         boxShadow: theme.palette.mode === 'dark'
@@ -105,23 +107,23 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                     border: `1px solid ${theme.palette.mode === 'dark' ? '#374151' : '#e0e7ef'}`,
                     borderRadius: 3,
                     background: theme.palette.mode === 'dark' ? "#18181b" : "#f8fafc",
-                    p: 2,
-                    maxHeight: shouldScroll ? 420 : "auto",
+                    p: { xs: 1, sm: 2 },
+                    maxHeight: shouldScroll ? (isMobile ? 320 : 420) : "auto",
                     overflowY: shouldScroll ? "auto" : "visible",
                     boxShadow: theme.palette.mode === 'dark'
                         ? '0 2px 12px 0 rgba(0,0,0,0.3)'
                         : '0 2px 12px 0 rgba(0,0,0,0.04)',
-                    minHeight: 200,
+                    minHeight: 120,
                     transition: "all 0.3s ease",
                     // --- Custom Scrollbar Styling ---
                     '&::-webkit-scrollbar': {
-                        width: 10,
-                        borderRadius: 12,
+                        width: 8,
+                        borderRadius: 10,
                         background: 'transparent',
                     },
                     '&::-webkit-scrollbar-thumb': {
                         background: theme.palette.mode === 'dark' ? '#23232b' : '#e0e7ef',
-                        borderRadius: 12,
+                        borderRadius: 10,
                         border: '2px solid transparent',
                         backgroundClip: 'padding-box',
                     },
@@ -152,26 +154,16 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                                         sx={{
                                             borderRadius: 2,
                                             mb: 1,
-                                            px: 1.5,
-                                            py: 1.2,
+                                            px: { xs: 1, sm: 1.5 },
+                                            py: { xs: 0.7, sm: 1.2 },
                                             transition: "all 0.3s ease",
-                                            "&:hover": {
-                                                background: theme.palette.mode === 'dark'
-                                                    ? "#374151"
-                                                    : "#e0e7ff",
-                                                boxShadow: theme.palette.mode === 'dark'
-                                                    ? '0 4px 12px rgba(0,0,0,0.4)'
-                                                    : '0 4px 12px rgba(0,0,0,0.1)',
-                                                transform: "translateY(-2px)",
-                                            },
                                             alignItems: "flex-start",
                                             gap: 1,
                                             cursor: "pointer",
-                                            // Dynamic background based on selection and theme
                                             background: isSelected
                                                 ? theme.palette.mode === 'dark'
-                                                    ? `${CATEGORY_COLORS[props.category]}20` // 20% opacity
-                                                    : `${CATEGORY_COLORS[props.category]}10` // 10% opacity
+                                                    ? `${CATEGORY_COLORS[props.category]}20`
+                                                    : `${CATEGORY_COLORS[props.category]}10`
                                                 : theme.palette.mode === 'dark'
                                                     ? "#1f2937"
                                                     : "#ffffff",
@@ -190,16 +182,16 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                                         <Avatar
                                             sx={{
                                                 bgcolor: CATEGORY_COLORS[props.category] || "#64748b",
-                                                width: 40,
-                                                height: 40,
-                                                mr: 2,
+                                                width: { xs: 32, sm: 40 },
+                                                height: { xs: 32, sm: 40 },
+                                                mr: { xs: 1, sm: 2 },
                                                 boxShadow: theme.palette.mode === 'dark'
                                                     ? "0 2px 8px 0 rgba(0,0,0,0.4)"
                                                     : "0 2px 8px 0 rgba(0,0,0,0.10)",
                                                 border: isSelected ? `2px solid ${CATEGORY_COLORS[props.category]}` : 'none',
                                             }}
                                         >
-                                            <PlaceIcon sx={{ color: "#fff" }} />
+                                            <PlaceIcon sx={{ color: "#fff", fontSize: { xs: 20, sm: 24 } }} />
                                         </Avatar>
                                         <ListItemText
                                             primary={
@@ -214,7 +206,8 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                                                         }
                                                         sx={{
                                                             letterSpacing: 0.2,
-                                                            transition: "all 0.2s ease"
+                                                            transition: "all 0.2s ease",
+                                                            fontSize: { xs: 15, sm: 17 },
                                                         }}
                                                     >
                                                         {props.name}
@@ -236,6 +229,7 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                                                             opacity: isSelected ? 1 : 0.8,
                                                             transform: isSelected ? "scale(1.05)" : "scale(1)",
                                                             transition: "all 0.2s ease",
+                                                            fontSize: { xs: 11, sm: 13 },
                                                         }}
                                                     />
                                                 </Stack>
@@ -247,7 +241,8 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                                                         color="text.secondary"
                                                         sx={{
                                                             mt: 0.5,
-                                                            opacity: theme.palette.mode === 'dark' ? 0.8 : 0.7
+                                                            opacity: theme.palette.mode === 'dark' ? 0.8 : 0.7,
+                                                            fontSize: { xs: 12, sm: 14 },
                                                         }}
                                                     >
                                                         {props.description.length > 90
@@ -273,7 +268,7 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                             variant="body2"
                             color="text.secondary"
                             align="center"
-                            sx={{ mt: 2 }}
+                            sx={{ mt: 2, fontSize: { xs: 13, sm: 15 } }}
                         >
                             No sites found.
                         </Typography>
