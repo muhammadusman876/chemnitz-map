@@ -4,12 +4,21 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import connectDB from "./config/db.js";
 import path from "path";
+import {
+  errorHandler,
+  handleUnhandledRejection,
+  handleUncaughtException,
+} from "./middleware/errorHandler.js";
 
 import authRoutes from "./routes/authRoutes.js";
 import favoriteRoutes from "./routes/favoriteRoutes.js";
 import geojsonRoutes from "./routes/cultRoutes.js";
 import userVisitRoutes from "./routes/userVisitRoutes.js";
 import districtRoutes from "./routes/districtRoutes.js";
+
+// Handle uncaught exceptions
+handleUncaughtException();
+
 // Load environment variables
 dotenv.config();
 
@@ -43,7 +52,14 @@ app.get("/", (req, res) => {
   res.send("API is running");
 });
 
+// Global error handler (must be last middleware)
+app.use(errorHandler);
+
 // Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () =>     console.log(`Server running on port ${PORT}`)
+const server = app.listen(PORT, () =>
+  console.log(`Server running on port ${PORT}`)
 );
+
+// Handle unhandled promise rejections
+handleUnhandledRejection();

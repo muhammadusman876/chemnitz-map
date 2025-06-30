@@ -125,7 +125,6 @@ const UserProfileEdit: React.FC = () => {
                 { withCredentials: true }
             );
             setUser((prev: any) => prev ? { ...prev, avatar: null } : prev);
-            ('✅ Avatar removed successfully');
         } catch (err) {
             console.error('❌ Error removing avatar:', err);
         } finally {
@@ -194,7 +193,6 @@ const UserProfileEdit: React.FC = () => {
             );
 
             setPasswordSuccess('Password updated successfully!');
-            ('✅ Password updated successfully');
 
             // Close dialog after 2 seconds
             setTimeout(() => {

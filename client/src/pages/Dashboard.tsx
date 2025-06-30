@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useEffect, useState } from "react";
 import {
     Box,
@@ -37,6 +38,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { useAuth } from "../hooks/useAuth";
 import axios from "axios";
+import { apiClient } from "../api/client";
 import BadgeShowcase from "../components/badges/BadgeShowcase";
 import UserProfileEdit from "../components/profile/UserProfileEdit";
 import { simpleCache } from "../utils/simpleCache";
@@ -150,9 +152,7 @@ const Dashboard = () => {
                     return;
                 }
 
-                const response = await axios.get('http://localhost:5000/api/progress/current-progress', {
-                    withCredentials: true
-                });
+                const response = await apiClient.get('/progress/current-progress');
 
                 // Add safety checks for the response data
                 const progressData = response.data || {

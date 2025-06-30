@@ -52,14 +52,13 @@ type CulturalSitesListProps = {
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-    museum: '#8A2D3B',      // deep wine red
-    gallery: '#14b8a6',     // teal
-    artwork: '#f59e42',     // orange
-    theatre: '#a21caf',     // purple
-    hotel: '#e11d48',       // red
-    guest_house: '#fbbf24', // gold
-    restaurant: '#16a34a',  // green
-    // ...add more as needed
+    museum: '#dc2626',      // red - distinct from theatre
+    gallery: '#06b6d4',     // cyan
+    artwork: '#f59e0b',     // amber
+    theatre: '#7c3aed',     // purple - distinct from museum
+    hotel: '#4B352A',       // rose
+    guest_house: '#f97316', // orange
+    restaurant: '#10b981',  // emerald
 };
 
 const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
@@ -152,46 +151,76 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                                             site.geometry ? site.geometry.coordinates[0] : props.coordinates.lng
                                         ])}
                                         sx={{
-                                            borderRadius: 2,
-                                            mb: 1,
-                                            px: { xs: 1, sm: 1.5 },
-                                            py: { xs: 0.7, sm: 1.2 },
-                                            transition: "all 0.3s ease",
+                                            borderRadius: 3,
+                                            mb: 1.5,
+                                            px: { xs: 1.5, sm: 2 },
+                                            py: { xs: 1, sm: 1.5 },
+                                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                                             alignItems: "flex-start",
                                             gap: 1,
                                             cursor: "pointer",
                                             background: isSelected
                                                 ? theme.palette.mode === 'dark'
-                                                    ? `${CATEGORY_COLORS[props.category]}20`
-                                                    : `${CATEGORY_COLORS[props.category]}10`
+                                                    ? `linear-gradient(135deg, ${CATEGORY_COLORS[props.category]}15, ${CATEGORY_COLORS[props.category]}08)`
+                                                    : `linear-gradient(135deg, ${CATEGORY_COLORS[props.category]}08, ${CATEGORY_COLORS[props.category]}04)`
                                                 : theme.palette.mode === 'dark'
-                                                    ? "#1f2937"
-                                                    : "#ffffff",
+                                                    ? "linear-gradient(135deg, #1f2937, #111827)"
+                                                    : "linear-gradient(135deg, #ffffff, #f8fafc)",
                                             border: isSelected
-                                                ? `2px solid ${CATEGORY_COLORS[props.category] || "#64748b"}40`
+                                                ? `2px solid ${CATEGORY_COLORS[props.category] || "#64748b"}60`
                                                 : theme.palette.mode === 'dark'
                                                     ? "1px solid #374151"
                                                     : "1px solid #e5e7eb",
                                             boxShadow: isSelected
-                                                ? `0 0 0 3px ${CATEGORY_COLORS[props.category] || "#64748b"}20`
+                                                ? `0 4px 20px 0 ${CATEGORY_COLORS[props.category] || "#64748b"}20, 0 0 0 1px ${CATEGORY_COLORS[props.category] || "#64748b"}10`
                                                 : theme.palette.mode === 'dark'
-                                                    ? "0 1px 4px 0 rgba(0,0,0,0.2)"
-                                                    : "0 1px 4px 0 rgba(0,0,0,0.04)",
+                                                    ? "0 2px 8px 0 rgba(0,0,0,0.3), 0 1px 3px 0 rgba(0,0,0,0.2)"
+                                                    : "0 2px 8px 0 rgba(0,0,0,0.06), 0 1px 3px 0 rgba(0,0,0,0.04)",
+                                            transform: isSelected ? 'translateY(-1px)' : 'translateY(0)',
+                                            '&:hover': {
+                                                transform: 'translateY(-2px)',
+                                                boxShadow: theme.palette.mode === 'dark'
+                                                    ? "0 4px 16px 0 rgba(0,0,0,0.4), 0 2px 6px 0 rgba(0,0,0,0.3)"
+                                                    : "0 4px 16px 0 rgba(0,0,0,0.1), 0 2px 6px 0 rgba(0,0,0,0.06)",
+                                            },
                                         }}
                                     >
                                         <Avatar
                                             sx={{
                                                 bgcolor: CATEGORY_COLORS[props.category] || "#64748b",
-                                                width: { xs: 32, sm: 40 },
-                                                height: { xs: 32, sm: 40 },
-                                                mr: { xs: 1, sm: 2 },
+                                                width: { xs: 36, sm: 44 },
+                                                height: { xs: 36, sm: 44 },
+                                                mr: { xs: 1.5, sm: 2 },
                                                 boxShadow: theme.palette.mode === 'dark'
-                                                    ? "0 2px 8px 0 rgba(0,0,0,0.4)"
-                                                    : "0 2px 8px 0 rgba(0,0,0,0.10)",
-                                                border: isSelected ? `2px solid ${CATEGORY_COLORS[props.category]}` : 'none',
+                                                    ? "0 3px 12px 0 rgba(0,0,0,0.4)"
+                                                    : "0 3px 12px 0 rgba(0,0,0,0.15)",
+                                                border: isSelected
+                                                    ? `3px solid ${CATEGORY_COLORS[props.category]}`
+                                                    : `2px solid ${theme.palette.mode === 'dark' ? '#374151' : '#e5e7eb'}`,
+                                                borderRadius: '50% 50% 50% 0',
+                                                transform: isSelected ? 'scale(1.1)' : 'scale(1)',
+                                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                position: 'relative',
+                                                '&::after': {
+                                                    content: '""',
+                                                    position: 'absolute',
+                                                    bottom: '-2px',
+                                                    right: '-2px',
+                                                    width: '6px',
+                                                    height: '6px',
+                                                    backgroundColor: CATEGORY_COLORS[props.category] || "#64748b",
+                                                    borderRadius: '50%',
+                                                    border: `1px solid ${theme.palette.mode === 'dark' ? '#18181b' : '#ffffff'}`,
+                                                    opacity: isSelected ? 1 : 0.7,
+                                                },
                                             }}
                                         >
-                                            <PlaceIcon sx={{ color: "#fff", fontSize: { xs: 20, sm: 24 } }} />
+                                            <PlaceIcon sx={{
+                                                color: "#fff",
+                                                fontSize: { xs: 22, sm: 26 },
+                                                filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))',
+                                                transform: 'translateY(-1px)',
+                                            }} />
                                         </Avatar>
                                         <ListItemText
                                             primary={
@@ -215,21 +244,30 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                                                     <Chip
                                                         label={
                                                             props.category
-                                                                ? props.category.charAt(0).toUpperCase() + props.category.slice(1)
+                                                                ? props.category.charAt(0).toUpperCase() + props.category.slice(1).replace(/_/g, ' ')
                                                                 : "Unknown"
                                                         }
                                                         size="small"
                                                         sx={{
-                                                            background: CATEGORY_COLORS[props.category] || "#334155",
+                                                            backgroundColor: CATEGORY_COLORS[props.category] || "#334155",
                                                             color: "#fff",
-                                                            fontWeight: 600,
+                                                            fontWeight: 500,
                                                             ml: 0.5,
-                                                            letterSpacing: 0.5,
+                                                            letterSpacing: 0.3,
                                                             px: 1,
-                                                            opacity: isSelected ? 1 : 0.8,
+                                                            py: 0.2,
+                                                            opacity: isSelected ? 1 : 0.9,
                                                             transform: isSelected ? "scale(1.05)" : "scale(1)",
-                                                            transition: "all 0.2s ease",
-                                                            fontSize: { xs: 11, sm: 13 },
+                                                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                                            fontSize: { xs: 10, sm: 11 },
+                                                            height: { xs: 20, sm: 22 },
+                                                            boxShadow: `0 1px 3px 0 ${CATEGORY_COLORS[props.category] || "#334155"}40`,
+                                                            border: `1px solid ${CATEGORY_COLORS[props.category] || "#334155"}30`,
+                                                            borderRadius: 1.5,
+                                                            '& .MuiChip-label': {
+                                                                fontSize: { xs: 10, sm: 11 },
+                                                                px: 0.5,
+                                                            },
                                                         }}
                                                     />
                                                 </Stack>
@@ -257,7 +295,8 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                                         borderColor: theme.palette.mode === 'dark'
                                             ? '#374151'
                                             : '#e5e7eb',
-                                        opacity: 0.5
+                                        opacity: 0.3,
+                                        mx: 1,
                                     }} />
                                 </Box>
                             </Fade>

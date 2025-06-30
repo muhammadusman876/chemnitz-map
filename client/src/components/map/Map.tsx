@@ -6,8 +6,6 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
 import 'leaflet.markercluster/dist/leaflet.markercluster.js';
 
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-import userLocationIcon from '../../assets/shooting-target-color-icon(1).svg'; // adjust the path as needed
 import { checkinToNearbySite } from '../../api/mapApi';
 import { getMe } from '../../api/authApi';
 import { Fab, Tooltip, Chip, Stack, Paper, useTheme } from "@mui/material";
@@ -15,36 +13,107 @@ import MyLocationIcon from "@mui/icons-material/MyLocation";
 import useMediaQuery from '@mui/material/useMediaQuery';
 
 const CATEGORY_COLORS: Record<string, string> = {
-  museum: '#8A2D3B',      // deep wine red
-  gallery: '#14b8a6',     // teal
-  artwork: '#f59e42',     // orange
-  theatre: '#a21caf',     // purple
-  hotel: '#e11d48',       // red
-  guest_house: '#fbbf24', // gold
-  restaurant: '#16a34a',  // green
+  museum: '#6366f1',      // modern indigo
+  gallery: '#06b6d4',     // cyan
+  artwork: '#f59e0b',     // amber
+  theatre: '#8b5cf6',     // violet
+  hotel: '#ef4444',       // red
+  guest_house: '#f97316', // orange
+  restaurant: '#10b981',  // emerald
   // ...add more as needed
 };
 
 function getCategoryIcon(category: string) {
   const color = CATEGORY_COLORS[category] || '#64748b'; // default gray
   return L.divIcon({
-    className: '',
-    html: `<svg width="32" height="41" viewBox="0 0 32 41" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="16" cy="16" rx="14" ry="14" fill="${color}" stroke="#222" stroke-width="2"/>
-      <rect x="14" y="30" width="4" height="8" rx="2" fill="${color}" stroke="#222" stroke-width="2"/>
-    </svg>`,
-    iconSize: [32, 41],
-    iconAnchor: [16, 41],
-    popupAnchor: [0, -41],
+    className: 'modern-marker',
+    html: `<div style="
+      position: relative;
+      width: 32px;
+      height: 40px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      transition: all 0.2s ease;
+    ">
+      <!-- Pin body -->
+      <div style="
+        background: linear-gradient(135deg, ${color} 0%, ${color}cc 100%);
+        border: 3px solid #ffffff;
+        border-radius: 50% 50% 50% 0;
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2), 0 2px 6px rgba(0,0,0,0.1);
+        transform: rotate(-45deg);
+        position: relative;
+      ">
+        <!-- Center dot for precise location -->
+        <div style="
+          width: 8px;
+          height: 8px;
+          background: #ffffff;
+          border-radius: 50%;
+          transform: rotate(45deg);
+          box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+        "></div>
+      </div>
+    </div>`,
+    iconSize: [32, 40],
+    iconAnchor: [16, 40],
+    popupAnchor: [0, -40],
   });
 }
 
-// Selected marker icon (red and bigger)
-const SelectedIcon = L.icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-  shadowUrl: iconShadow,
-  iconSize: [35, 51],
-  iconAnchor: [17, 51],
+// Selected marker icon (modern highlighted style)
+const SelectedIcon = L.divIcon({
+  className: 'selected-marker',
+  html: `<div style="
+    position: relative;
+    width: 40px;
+    height: 48px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    animation: pulse 2s infinite;
+  ">
+    <!-- Pin body -->
+    <div style="
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      border: 4px solid #ffffff;
+      border-radius: 50% 50% 50% 0;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4), 0 4px 10px rgba(0,0,0,0.2);
+      transform: rotate(-45deg);
+      position: relative;
+    ">
+      <!-- Center dot -->
+      <div style="
+        width: 12px;
+        height: 12px;
+        background: #ffffff;
+        border-radius: 50%;
+        transform: rotate(45deg);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      "></div>
+    </div>
+  </div>
+  <style>
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+  </style>`,
+  iconSize: [40, 48],
+  iconAnchor: [20, 48],
+  popupAnchor: [0, -48],
 });
 
 interface MapProps {
@@ -162,16 +231,62 @@ const Map: React.FC<MapProps> = ({
     // @ts-ignore
     const clusterGroup = L.markerClusterGroup({
       showCoverageOnHover: false,
-      maxClusterRadius: 40,
+      maxClusterRadius: 50,
       spiderfyOnMaxZoom: true,
       iconCreateFunction: function (cluster) {
         const count = cluster.getChildCount();
-        // Use your primary color or any color you want for the cluster circle
-        const color = '#574964';
+        // Modern gradient cluster design with subtle pin inspiration
+        const size = count < 10 ? 'small' : count < 100 ? 'medium' : 'large';
+        const dimensions = size === 'small' ? 42 : size === 'medium' ? 52 : 62;
+        const fontSize = size === 'small' ? '12px' : size === 'medium' ? '14px' : '16px';
+
         return L.divIcon({
-          html: `<div style="background: ${color}; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.15); border: 3px solid #fff;"><span style='color: #fff; font-weight: bold; font-size: 1.1rem;'>${count}</span></div>`,
-          className: 'custom-cluster-icon',
-          iconSize: [40, 40],
+          html: `<div style="
+            position: relative;
+            width: ${dimensions}px;
+            height: ${dimensions}px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          ">
+            <!-- Main cluster circle -->
+            <div style="
+              background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+              border: 3px solid #ffffff;
+              border-radius: 50%;
+              width: ${dimensions}px;
+              height: ${dimensions}px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 6px 20px rgba(79, 70, 229, 0.3), 0 4px 8px rgba(0,0,0,0.15);
+              transition: all 0.2s ease;
+              position: relative;
+            ">
+              <span style="
+                color: #ffffff;
+                font-weight: 700;
+                font-size: ${fontSize};
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+                z-index: 1;
+              ">${count}</span>
+              <!-- Subtle location indicator -->
+              <div style="
+                position: absolute;
+                bottom: 2px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 6px;
+                height: 6px;
+                background: rgba(255,255,255,0.8);
+                border-radius: 50%;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+              "></div>
+            </div>
+          </div>`,
+          className: 'modern-cluster-icon',
+          iconSize: [dimensions, dimensions],
         });
       },
     });
@@ -183,11 +298,45 @@ const Map: React.FC<MapProps> = ({
         // Use a special icon if site is visited
         const isVisited = visitedSites.includes(props._id);
         const markerIcon = isVisited
-          ? L.icon({
-            iconUrl: 'https://cdn-icons-png.flaticon.com/512/190/190411.png', // Example: green check icon
-            iconSize: [32, 41],
-            iconAnchor: [16, 41],
-            popupAnchor: [0, -41],
+          ? L.divIcon({
+            className: 'visited-marker',
+            html: `<div style="
+              position: relative;
+              width: 34px;
+              height: 42px;
+              display: flex;
+              align-items: flex-start;
+              justify-content: center;
+              transition: all 0.2s ease;
+            ">
+              <!-- Pin body -->
+              <div style="
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                border: 3px solid #ffffff;
+                border-radius: 50% 50% 50% 0;
+                width: 30px;
+                height: 30px;
+                transform: rotate(-45deg);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3), 0 2px 4px rgba(0,0,0,0.15);
+                position: relative;
+              ">
+                <!-- Checkmark -->
+                <div style="
+                  color: #ffffff;
+                  font-size: 14px;
+                  font-weight: bold;
+                  transform: rotate(45deg);
+                  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+                  line-height: 1;
+                ">✓</div>
+              </div>
+            </div>`,
+            iconSize: [34, 42],
+            iconAnchor: [17, 42],
+            popupAnchor: [0, -42],
           })
           : isSelected(latlng.lat, latlng.lng)
             ? SelectedIcon
@@ -251,15 +400,56 @@ const Map: React.FC<MapProps> = ({
       if (userCircleRef.current) {
         mapRef.current.removeLayer(userCircleRef.current);
       }
-      // Add new user marker
+
+      // Create modern user location icon
+      const userLocationMarkerIcon = L.divIcon({
+        className: 'user-location-marker',
+        html: `<div style="
+          position: relative;
+          width: 36px;
+          height: 44px;
+          display: flex;
+          align-items: flex-start;
+          justify-content: center;
+          animation: userPulse 2s infinite;
+        ">
+          <!-- Pin body -->
+          <div style="
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            border: 4px solid #ffffff;
+            border-radius: 50% 50% 50% 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4), 0 4px 10px rgba(0,0,0,0.2);
+            transform: rotate(-45deg);
+            position: relative;
+          ">
+            <!-- User icon -->
+            <div style="
+              color: #ffffff;
+              font-size: 16px;
+              font-weight: bold;
+              transform: rotate(45deg);
+              text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+              line-height: 1;
+            ">📍</div>
+          </div>
+        </div>`,
+        iconSize: [36, 44],
+        iconAnchor: [18, 44],
+        popupAnchor: [0, -44],
+      });
+
+      // Add new user marker with modern icon
       userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], {
-        icon: L.icon({
-          iconUrl: userLocationIcon, // user icon
-          iconSize: [32, 32],
-          iconAnchor: [16, 32],
-        }),
+        icon: userLocationMarkerIcon,
         title: 'Your Location',
+        zIndexOffset: 1000, // Ensure it appears above other markers
       }).addTo(mapRef.current).bindPopup('Your Location');
+
       // Add 50m radius circle
       userCircleRef.current = L.circle([userLocation.lat, userLocation.lng], {
         radius: 50,
@@ -298,14 +488,18 @@ const Map: React.FC<MapProps> = ({
       try {
         const res = await checkinToNearbySite(userLocation);
         const data = res.data;
-        if (res.status === 200) {
+        if (res.status === 200 && data.success) {
           // Add the site to visitedSites state if not already present
           if (data.site && !visitedSites.includes(data.site._id)) {
             setVisitedSites((prev) => [...prev, data.site._id]);
           }
+        } else if (res.status === 200 && !data.success) {
+          // User is not near a site - this is normal, no error needed
+          console.log(data.message); // Just log for debugging
         }
       } catch (err) {
-        // Optionally handle error
+        // Handle actual network or server errors
+        console.error('Check-in error:', err);
       }
     }
     if (userLocation) {
@@ -335,6 +529,59 @@ const Map: React.FC<MapProps> = ({
   // --- Category Filter Overlay ---
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <style>
+        {`
+          /* Modern marker hover effects */
+          .modern-marker:hover {
+            transform: scale(1.1);
+            z-index: 1000;
+          }
+          
+          .visited-marker:hover {
+            transform: scale(1.1);
+            z-index: 1000;
+          }
+          
+          .selected-marker:hover {
+            transform: scale(1.05);
+          }
+          
+          .user-location-marker:hover {
+            transform: scale(1.1);
+            z-index: 1000;
+          }
+          
+          /* Cluster hover effects */
+          .modern-cluster-icon:hover {
+            transform: scale(1.1);
+            z-index: 1000;
+          }
+          
+          /* Smooth transitions for all markers */
+          .modern-marker,
+          .visited-marker,
+          .selected-marker,
+          .user-location-marker,
+          .modern-cluster-icon {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+          }
+          
+          /* Pulse animation for selected marker */
+          @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+          }
+          
+          /* User location pulse animation */
+          @keyframes userPulse {
+            0% { transform: scale(1); box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4); }
+            50% { transform: scale(1.08); box-shadow: 0 8px 25px rgba(37, 99, 235, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4); }
+          }
+        `}
+      </style>
       {/* Category filter overlay */}
       {showCategoryFilter && (
         <Paper

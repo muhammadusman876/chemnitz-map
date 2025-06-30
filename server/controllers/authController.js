@@ -17,9 +17,9 @@ export const register = async (req, res) => {
     if (user) return res.status(400).json({ message: "User already exists" });
 
     // Check if username is taken
-    user = await User.findOne({ username });
-    if (user)
-      return res.status(400).json({ message: "Username is already taken" });
+    // user = await User.findOne({ username });
+    // if (user)
+    //   return res.status(400).json({ message: "Username is already taken" });
 
     // Hash password
     const salt = await bcrypt.genSalt(10);

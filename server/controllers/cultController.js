@@ -153,9 +153,12 @@ export const checkinToNearbySite = async (req, res) => {
     }
 
     if (!checkedInSite) {
-      return res
-        .status(404)
-        .json({ message: "No nearby site found for check-in." });
+      return res.status(200).json({
+        success: false,
+        message:
+          "You need to be within 50 meters of a cultural site to check in.",
+        nearbyRequired: true,
+      });
     }
 
     // Add to visitedSites if not already present
@@ -163,7 +166,11 @@ export const checkinToNearbySite = async (req, res) => {
       $addToSet: { visitedSites: checkedInSite._id },
     });
 
-    res.json({ message: "Checked in!", site: checkedInSite });
+    res.json({
+      success: true,
+      message: "Successfully checked in!",
+      site: checkedInSite,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

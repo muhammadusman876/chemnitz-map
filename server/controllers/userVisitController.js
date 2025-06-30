@@ -36,9 +36,12 @@ export const checkInToSite = async (req, res) => {
     }
 
     if (!checkedInSite) {
-      return res
-        .status(404)
-        .json({ message: "No nearby site found for check-in." });
+      return res.status(200).json({
+        success: false,
+        message:
+          "You need to be within 50 meters of a cultural site to check in.",
+        nearbyRequired: true,
+      });
     }
 
     // Find or create user visit record
@@ -306,6 +309,7 @@ export const getLeaderboard = async (req, res) => {
 
     // Calculate monthly stats for each user
     const leaderboard = userVisits
+      .filter((visit) => visit.userId && visit.userId.username) // Filter out users with null userId
       .map((visit) => {
         // Filter visits to only this month
         const monthlyVisits = visit.visitedSites.filter(
@@ -335,15 +339,15 @@ export const getLeaderboard = async (req, res) => {
         return {
           username: visit.userId.username,
           avatar: visit.userId.avatar,
-          totalBadges: visit.totalBadges,
+          totalBadges: visit.totalBadges || 0,
           visitedSites: visit.visitedSites.length, // Total all-time visits
           monthlyVisits: monthlyVisits.length, // This month's visits
-          completedCategories: visit.categoryProgress.filter(
-            (cp) => cp.completed
-          ).length,
-          completedDistricts: visit.districtProgress.filter(
-            (dp) => dp.completed
-          ).length,
+          completedCategories: visit.categoryProgress
+            ? visit.categoryProgress.filter((cp) => cp.completed).length
+            : 0,
+          completedDistricts: visit.districtProgress
+            ? visit.districtProgress.filter((dp) => dp.completed).length
+            : 0,
           latestVisitDate: latestVisit,
           joinDate: joinDate, // First visit date as join date
         };
