@@ -184,9 +184,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
 
         try {
-            console.log('🔄 Calling logout API...');
             await logoutApi();
-            console.log('✅ Logout API call successful');
 
             // Server has cleared the cookie
             setUser(null);
@@ -208,7 +206,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 },
             });
 
-            console.log('✅ Local state cleared');
         } catch (error) {
             console.error("❌ Logout API failed:", error);
 
@@ -232,7 +229,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 },
             });
 
-            console.log('⚠️ Cleared local state despite API error');
         } finally {
             setLoading(false);
         }

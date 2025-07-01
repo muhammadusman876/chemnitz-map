@@ -5,6 +5,7 @@ import {
   getSitesByDistrict,
   getDistrictGeoJson,
   assignDistrictsToSites,
+  refreshDistrictSiteCounts,
 } from "../controllers/districtController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -18,5 +19,6 @@ router.get("/:district", getSitesByDistrict);
 // Admin-only routes
 router.post("/import", authMiddleware, importDistrictsGeojson);
 router.post("/assign-districts", authMiddleware, assignDistrictsToSites);
+router.post("/refresh-counts", authMiddleware, refreshDistrictSiteCounts);
 
 export default router;

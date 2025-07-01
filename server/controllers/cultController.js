@@ -4,6 +4,8 @@ import CulturalSite from "../models/CultureSite.js";
 import geojsonToMongoDoc from "../utils/geojsonToMongoDoc.js";
 import { getPlaceName } from "../utils/reverse.js";
 import User from "../models/User.js";
+import UserVisit from "../models/UserVisit.js";
+import District from "../models/District.js";
 import getDistanceFromLatLonInMeters from "../utils/distanceFromLatLon.js";
 import { fileURLToPath } from "url";
 
@@ -145,8 +147,11 @@ export const checkinToNearbySite = async (req, res) => {
           site.coordinates.lat,
           site.coordinates.lng
         );
-        if (distance <= 50) {
+        if (distance <= 80) {
           checkedInSite = site;
+          console.log(
+            `Found nearby site: ${site.name} at ${distance.toFixed(2)}m`
+          );
           break;
         }
       }
@@ -156,20 +161,106 @@ export const checkinToNearbySite = async (req, res) => {
       return res.status(200).json({
         success: false,
         message:
-          "You need to be within 50 meters of a cultural site to check in.",
+          "You need to be within 80 meters of a cultural site to check in.",
         nearbyRequired: true,
       });
     }
 
-    // Add to visitedSites if not already present
-    await User.findByIdAndUpdate(userId, {
-      $addToSet: { visitedSites: checkedInSite._id },
-    });
+    // Check if user has already visited this site
+    let userVisit = await UserVisit.findOne({ userId });
+    if (!userVisit) {
+      // Create new UserVisit document if it doesn't exist
+      userVisit = new UserVisit({
+        userId,
+        visitedSites: [],
+        categoryProgress: [],
+        districtProgress: [],
+      });
+    }
+
+    // Check if already visited
+    const alreadyVisited = userVisit.visitedSites.some(
+      (visit) => visit.site.toString() === checkedInSite._id.toString()
+    );
+
+    if (!alreadyVisited) {
+      // Add to visitedSites
+      userVisit.visitedSites.push({
+        site: checkedInSite._id,
+        visitDate: new Date(),
+      });
+
+      // Update category progress
+      let categoryProgress = userVisit.categoryProgress.find(
+        (cp) => cp.category === checkedInSite.category
+      );
+
+      if (!categoryProgress) {
+        // Create category progress if it doesn't exist
+        const totalSitesInCategory = await CulturalSite.countDocuments({
+          category: checkedInSite.category,
+        });
+        categoryProgress = {
+          category: checkedInSite.category,
+          totalSites: totalSitesInCategory,
+          visitedSites: [],
+          completed: false,
+        };
+        userVisit.categoryProgress.push(categoryProgress);
+      }
+
+      categoryProgress.visitedSites.push(checkedInSite._id);
+
+      // Check if category is complete
+      if (categoryProgress.visitedSites.length >= categoryProgress.totalSites) {
+        categoryProgress.completed = true;
+      }
+
+      // Update district progress
+      if (checkedInSite.district) {
+        let districtProgress = userVisit.districtProgress.find(
+          (dp) => dp.district === checkedInSite.district
+        );
+
+        if (!districtProgress) {
+          // Create district progress if it doesn't exist
+          const totalSitesInDistrict = await CulturalSite.countDocuments({
+            district: checkedInSite.district,
+          });
+          districtProgress = {
+            district: checkedInSite.district,
+            totalSites: totalSitesInDistrict,
+            visitedSites: [],
+            completed: false,
+          };
+          userVisit.districtProgress.push(districtProgress);
+        }
+
+        districtProgress.visitedSites.push(checkedInSite._id);
+
+        // Check if district is complete
+        if (
+          districtProgress.visitedSites.length >= districtProgress.totalSites
+        ) {
+          districtProgress.completed = true;
+        }
+      }
+
+      await userVisit.save();
+      console.log(
+        `User ${userId} checked into site: ${checkedInSite.name} (${checkedInSite._id})`
+      );
+    } else {
+      console.log(`User ${userId} already visited site: ${checkedInSite.name}`);
+    }
 
     res.json({
       success: true,
-      message: "Successfully checked in!",
+      message: alreadyVisited
+        ? "Already visited this site!"
+        : "Successfully checked in!",
       site: checkedInSite,
+      alreadyVisited,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

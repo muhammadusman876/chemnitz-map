@@ -7,7 +7,6 @@ import {
     ListItemText,
     Divider,
     Chip,
-    Stack,
     Fade,
     Avatar,
     useTheme,
@@ -52,12 +51,12 @@ type CulturalSitesListProps = {
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-    museum: '#dc2626',      // red - distinct from theatre
-    gallery: '#06b6d4',     // cyan
-    artwork: '#f59e0b',     // amber
-    theatre: '#7c3aed',     // purple - distinct from museum
-    hotel: '#4B352A',       // rose
-    guest_house: '#f97316', // orange
+    museum: '#dc2626',
+    gallery: '#06b6d4',
+    artwork: '#F564A9',
+    theatre: '#A888B5',
+    hotel: '#A27B5C',
+    guest_house: '#f97316',
     restaurant: '#10b981',  // emerald
 };
 
@@ -224,7 +223,7 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                                         </Avatar>
                                         <ListItemText
                                             primary={
-                                                <Stack direction="row" alignItems="center" spacing={1}>
+                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                                                     <Typography
                                                         variant="subtitle1"
                                                         fontWeight={isSelected ? 800 : 700}
@@ -241,54 +240,55 @@ const CulturalSitesList: React.FC<CulturalSitesListProps> = ({
                                                     >
                                                         {props.name}
                                                     </Typography>
-                                                    <Chip
-                                                        label={
-                                                            props.category
-                                                                ? props.category.charAt(0).toUpperCase() + props.category.slice(1).replace(/_/g, ' ')
-                                                                : "Unknown"
-                                                        }
-                                                        size="small"
-                                                        sx={{
-                                                            backgroundColor: CATEGORY_COLORS[props.category] || "#334155",
-                                                            color: "#fff",
-                                                            fontWeight: 500,
-                                                            ml: 0.5,
-                                                            letterSpacing: 0.3,
-                                                            px: 1,
-                                                            py: 0.2,
-                                                            opacity: isSelected ? 1 : 0.9,
-                                                            transform: isSelected ? "scale(1.05)" : "scale(1)",
-                                                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                                                            fontSize: { xs: 10, sm: 11 },
-                                                            height: { xs: 20, sm: 22 },
-                                                            boxShadow: `0 1px 3px 0 ${CATEGORY_COLORS[props.category] || "#334155"}40`,
-                                                            border: `1px solid ${CATEGORY_COLORS[props.category] || "#334155"}30`,
-                                                            borderRadius: 1.5,
-                                                            '& .MuiChip-label': {
+                                                    <Box>
+                                                        <Chip
+                                                            label={
+                                                                props.category
+                                                                    ? props.category.charAt(0).toUpperCase() + props.category.slice(1).replace(/_/g, ' ')
+                                                                    : "Unknown"
+                                                            }
+                                                            size="small"
+                                                            sx={{
+                                                                backgroundColor: CATEGORY_COLORS[props.category] || "#334155",
+                                                                color: "#fff",
+                                                                fontWeight: 500,
+                                                                letterSpacing: 0.3,
+                                                                px: 1,
+                                                                py: 0.2,
+                                                                opacity: isSelected ? 1 : 0.9,
+                                                                transform: isSelected ? "scale(1.05)" : "scale(1)",
+                                                                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                                                                 fontSize: { xs: 10, sm: 11 },
-                                                                px: 0.5,
-                                                            },
-                                                        }}
-                                                    />
-                                                </Stack>
+                                                                height: { xs: 20, sm: 22 },
+                                                                boxShadow: `0 1px 3px 0 ${CATEGORY_COLORS[props.category] || "#334155"}40`,
+                                                                border: `1px solid ${CATEGORY_COLORS[props.category] || "#334155"}30`,
+                                                                borderRadius: 1.5,
+                                                                '& .MuiChip-label': {
+                                                                    fontSize: { xs: 10, sm: 11 },
+                                                                    px: 0.5,
+                                                                },
+                                                            }}
+                                                        />
+                                                    </Box>
+                                                </Box>
                                             }
-                                            secondary={
-                                                props.description && (
-                                                    <Typography
-                                                        variant="body2"
-                                                        color="text.secondary"
-                                                        sx={{
-                                                            mt: 0.5,
-                                                            opacity: theme.palette.mode === 'dark' ? 0.8 : 0.7,
-                                                            fontSize: { xs: 12, sm: 14 },
-                                                        }}
-                                                    >
-                                                        {props.description.length > 90
-                                                            ? props.description.slice(0, 90) + "…"
-                                                            : props.description}
-                                                    </Typography>
-                                                )
-                                            }
+                                            secondary={props.description ? (
+                                                <Typography
+                                                    variant="body2"
+                                                    color="text.secondary"
+                                                    component="span"
+                                                    sx={{
+                                                        mt: 0.5,
+                                                        opacity: theme.palette.mode === 'dark' ? 0.8 : 0.7,
+                                                        fontSize: { xs: 12, sm: 14 },
+                                                        display: 'block',
+                                                    }}
+                                                >
+                                                    {props.description.length > 90
+                                                        ? props.description.slice(0, 90) + "…"
+                                                        : props.description}
+                                                </Typography>
+                                            ) : null}
                                         />
                                     </ListItem>
                                     <Divider sx={{

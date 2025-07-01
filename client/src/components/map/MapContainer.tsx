@@ -317,7 +317,6 @@ const MapContainer = () => {
       simpleCache.set('user-favorites', updatedFavorites, 3 * 60 * 1000); // Update cache
       toast ? toast.success('Added to favorites') : alert('Added to favorites');
     } catch (error) {
-      console.error('Error adding favorite:', error);
       toast ? toast.error('Failed to add to favorites') : alert('Failed to add to favorites');
     }
   };
@@ -612,6 +611,7 @@ const MapContainer = () => {
           />
         ) : (
           <DistrictMapView
+            sites={geoJsonData?.features || []}
             progressData={progressData}
             onDistrictClick={handleDistrictClick}
             themeMode={theme.palette.mode}

@@ -171,9 +171,50 @@ export const assignDistrictsToSites = async (req, res) => {
         updated++;
       }
     }
-    res.json({ message: `Done. Updated ${updated} sites.` });
+
+    // Update site counts for all districts after assignment
+    for (const district of districts) {
+      const siteCount = await CulturalSite.countDocuments({
+        district: district.name,
+      });
+      await District.updateOne(
+        { name: district.name },
+        { $set: { siteCount } }
+      );
+    }
+
+    res.json({
+      message: `Done. Updated ${updated} sites and refreshed district site counts.`,
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: e.message });
+  }
+};
+
+// Refresh site counts for all districts (admin only)
+export const refreshDistrictSiteCounts = async (req, res) => {
+  try {
+    const districts = await District.find({}).select("name").lean();
+    let updated = 0;
+
+    for (const district of districts) {
+      const siteCount = await CulturalSite.countDocuments({
+        district: district.name,
+      });
+      await District.updateOne(
+        { name: district.name },
+        { $set: { siteCount } }
+      );
+      updated++;
+    }
+
+    res.json({
+      message: `Refreshed site counts for ${updated} districts.`,
+      updated,
+    });
+  } catch (error) {
+    console.error("Error refreshing district site counts:", error);
+    res.status(500).json({ error: error.message });
   }
 };

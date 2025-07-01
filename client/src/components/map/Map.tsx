@@ -11,16 +11,16 @@ import { getMe } from '../../api/authApi';
 import { Fab, Tooltip, Chip, Stack, Paper, useTheme } from "@mui/material";
 import MyLocationIcon from "@mui/icons-material/MyLocation";
 import useMediaQuery from '@mui/material/useMediaQuery';
+import toast from 'react-hot-toast';
 
 const CATEGORY_COLORS: Record<string, string> = {
-  museum: '#6366f1',      // modern indigo
-  gallery: '#06b6d4',     // cyan
-  artwork: '#f59e0b',     // amber
-  theatre: '#8b5cf6',     // violet
-  hotel: '#ef4444',       // red
-  guest_house: '#f97316', // orange
-  restaurant: '#10b981',  // emerald
-  // ...add more as needed
+  museum: '#dc2626',
+  gallery: '#06b6d4',
+  artwork: '#F564A9',
+  theatre: '#A888B5',
+  hotel: '#A27B5C',
+  guest_house: '#f97316',
+  restaurant: '#10b981',
 };
 
 function getCategoryIcon(category: string) {
@@ -151,6 +151,7 @@ const Map: React.FC<MapProps> = ({
 
   // Store visited site IDs for the current user
   const [visitedSites, setVisitedSites] = useState<string[]>([]);
+  const [shouldPanToUser, setShouldPanToUser] = useState<boolean>(false); // Flag to control panning
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -174,7 +175,7 @@ const Map: React.FC<MapProps> = ({
           }
         }
       } catch (err) {
-        console.error("Failed to fetch visited sites", err);
+        toast.error("Failed to fetch visited sites. Please try again later.");
       }
     }
     fetchVisited();
@@ -450,18 +451,22 @@ const Map: React.FC<MapProps> = ({
         zIndexOffset: 1000, // Ensure it appears above other markers
       }).addTo(mapRef.current).bindPopup('Your Location');
 
-      // Add 50m radius circle
+      // Add 100m radius circle to match backend check-in radius
       userCircleRef.current = L.circle([userLocation.lat, userLocation.lng], {
-        radius: 50,
+        radius: 80,
         color: '#2563eb',
         fillColor: '#2563eb',
         fillOpacity: 0.2,
         weight: 2,
       }).addTo(mapRef.current);
-      // Pan/zoom to user location
-      mapRef.current.setView([userLocation.lat, userLocation.lng], 16, { animate: true });
+
+      // Only pan/zoom to user location if explicitly requested (manual location update)
+      if (shouldPanToUser) {
+        mapRef.current.setView([userLocation.lat, userLocation.lng], 18, { animate: true });
+        setShouldPanToUser(false); // Reset flag
+      }
     }
-  }, [userLocation]);
+  }, [userLocation, shouldPanToUser]);
 
   // Automatic location polling every 5 minutes
   useEffect(() => {
@@ -477,7 +482,7 @@ const Map: React.FC<MapProps> = ({
           }
         );
       }
-    }, 300000); // 5 minutes in ms
+    }, 30000); // 5 minutes in ms
 
     return () => clearInterval(interval);
   }, [setUserLocation]);
@@ -494,8 +499,7 @@ const Map: React.FC<MapProps> = ({
             setVisitedSites((prev) => [...prev, data.site._id]);
           }
         } else if (res.status === 200 && !data.success) {
-          // User is not near a site - this is normal, no error needed
-          console.log(data.message); // Just log for debugging
+          console.warn('Looks like there is no cultural site nearby to check in to.');
         }
       } catch (err) {
         // Handle actual network or server errors
@@ -505,7 +509,8 @@ const Map: React.FC<MapProps> = ({
     if (userLocation) {
       checkInToNearbySite(userLocation);
     }
-    // eslint-disable-next-line
+    // Note: visitedSites dependency removed to prevent resetting state
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userLocation]);
 
   // Floating "locate me" button
@@ -517,6 +522,7 @@ const Map: React.FC<MapProps> = ({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         };
+        setShouldPanToUser(true); // Set flag to trigger panning
         setUserLocation(loc);
       },
       () => {

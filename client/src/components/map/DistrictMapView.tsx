@@ -7,6 +7,7 @@ import { simpleCache } from '../../utils/simpleCache';
 import { backgroundLoader } from '../../services/backgroundLoader';
 
 interface DistrictMapViewProps {
+    sites: any[]; // Use the same array as CulturalSitesList
     progressData: any;
     onDistrictClick: (district: string) => void;
     themeMode?: "light" | "dark";
@@ -18,6 +19,7 @@ interface DistrictData {
 }
 
 const DistrictMapView: React.FC<DistrictMapViewProps> = ({
+    sites,
     progressData,
     onDistrictClick,
     themeMode = "light"
@@ -142,7 +144,6 @@ const DistrictMapView: React.FC<DistrictMapViewProps> = ({
                 const cachedData = backgroundLoader.getCachedDistrictData();
 
                 if (cachedData.geoJson && cachedData.districts) {
-                    console.log('✅ Using preloaded district data');
                     setDistrictGeoJson(cachedData.geoJson);
                     setDistricts(cachedData.districts);
                     setError(null);
@@ -150,7 +151,6 @@ const DistrictMapView: React.FC<DistrictMapViewProps> = ({
                     return;
                 }
 
-                console.log('🔄 Waiting for background loading or fetching fresh data...');
 
                 // If not ready, ensure background loading is started and wait for it
                 await backgroundLoader.preloadDistrictData();
@@ -159,18 +159,15 @@ const DistrictMapView: React.FC<DistrictMapViewProps> = ({
                 const freshCachedData = backgroundLoader.getCachedDistrictData();
 
                 if (freshCachedData.geoJson && freshCachedData.districts) {
-                    console.log('✅ Using background-loaded district data');
                     setDistrictGeoJson(freshCachedData.geoJson);
                     setDistricts(freshCachedData.districts);
                     setError(null);
                 } else {
                     // Fallback: try manual loading
-                    console.log('⚠️ Background loading incomplete, trying manual fetch...');
                     await fallbackDataFetch();
                 }
 
             } catch (err: any) {
-                console.error('❌ Failed to load district data:', err);
                 setError(`Failed to load district map data: ${err.message}`);
             } finally {
                 setLoading(false);
@@ -200,12 +197,10 @@ const DistrictMapView: React.FC<DistrictMapViewProps> = ({
                     simpleCache.set('districts-list', listResponse.value.data, 15 * 60 * 1000);
 
                     setError(null);
-                    console.log('✅ Fallback loading successful');
                 } else {
                     throw new Error('Fallback loading failed');
                 }
             } catch (fallbackError) {
-                console.error('❌ Fallback loading failed:', fallbackError);
                 setError('Unable to load district map data. Please try refreshing the page.');
             }
         };
@@ -227,7 +222,6 @@ const DistrictMapView: React.FC<DistrictMapViewProps> = ({
             });
             return;
         }
-
         // Remove loading control if it exists
         if (loadingControlRef.current) {
             mapRef.current.removeControl(loadingControlRef.current);
@@ -241,51 +235,74 @@ const DistrictMapView: React.FC<DistrictMapViewProps> = ({
 
         // Use requestAnimationFrame to avoid blocking the UI
         requestAnimationFrame(() => {
-            // Style function for districts
-            const getDistrictStyle = (feature: any) => {
-                const districtName = feature.properties.STADTTNAME;
-                const districtData = districts.find(d => d.name === districtName);
-                const districtProgress = progressData?.districtProgress?.find(
-                    (d: any) => d.district === districtName
+            // Helper function to calculate district progress
+            const getDistrictProgress = (feature: any) => {
+                const originalDistrictName = feature.properties.STADTTNAME?.trim();
+                const districtNameNorm = originalDistrictName.toLowerCase().trim();
+
+                const sitesInDistrictArr = sites.filter(
+                    site => site.properties.district?.trim().toLowerCase() === districtNameNorm
                 );
+                const siteIdsInDistrict = new Set(sitesInDistrictArr.map(site => site.id || site._id));
+                const totalSites = sitesInDistrictArr.length;
 
-                let visitedCount = 0;
-                let totalSites = districtData?.siteCount || 0;
-
-                if (districtProgress) {
-                    visitedCount = districtProgress.visitedSites?.length || 0;
-                    if (districtProgress.totalSites > 0) {
-                        totalSites = districtProgress.totalSites;
-                    }
-                } else {
-                    visitedCount = progressData?.recentVisits?.filter(
-                        (visit: any) => visit.site?.district === districtName
-                    )?.length || 0;
-
-                    if (progressData?.categoryProgress) {
-                        progressData.categoryProgress.forEach((category: any) => {
-                            category.visitedSites.forEach((site: any) => {
-                                const siteDistrict = typeof site === 'object' ? site.district : undefined;
-                                if (siteDistrict === districtName) {
-                                    visitedCount += 1;
-                                }
-                            });
+                let visitedSiteIds = new Set<string>();
+                if (progressData?.districtProgress) {
+                    const dp = progressData.districtProgress.find((d: any) => d.district && d.district.toLowerCase().trim() === districtNameNorm);
+                    if (dp && Array.isArray(dp.visitedSites)) {
+                        dp.visitedSites.forEach((site: any) => {
+                            const id = site._id || site.siteId || site.id;
+                            if (id && siteIdsInDistrict.has(id)) {
+                                visitedSiteIds.add(id);
+                            }
                         });
                     }
                 }
+                if (progressData?.recentVisits) {
+                    progressData.recentVisits.forEach((visit: any) => {
+                        if (visit.site && visit.site._id && siteIdsInDistrict.has(visit.site._id)) {
+                            visitedSiteIds.add(visit.site._id);
+                        }
+                    });
+                }
+                if (progressData?.categoryProgress) {
+                    progressData.categoryProgress.forEach((category: any) => {
+                        if (category && Array.isArray(category.visitedSites)) {
+                            category.visitedSites.forEach((site: any) => {
+                                if (site && site._id && siteIdsInDistrict.has(site._id)) {
+                                    visitedSiteIds.add(site._id);
+                                }
+                            });
+                        }
+                    });
+                }
 
-                const isCompleted = districtProgress?.completed || (totalSites > 0 && visitedCount >= totalSites);
-                const percentage = totalSites > 0 ? (visitedCount / totalSites) : (visitedCount > 0 ? 0.3 : 0);
+                const visitedCount = visitedSiteIds.size;
+                const isCompleted = totalSites > 0 && visitedCount === totalSites;
+                const percentage = totalSites > 0 ? (visitedCount / totalSites) : 0;
 
-                let fillColor = '#CCCCCC';
+                return {
+                    originalDistrictName,
+                    visitedCount,
+                    totalSites,
+                    isCompleted,
+                    percentage
+                };
+            };
+
+            // Style function for districts
+            const getDistrictStyle = (feature: any) => {
+                const { isCompleted, percentage } = getDistrictProgress(feature);
+
+                let fillColor = '#CCCCCC'; // Default grey for unexplored
                 if (isCompleted) {
-                    fillColor = '#4CAF50';
+                    fillColor = '#4CAF50'; // Green only when fully completed
                 } else if (percentage > 0.6) {
-                    fillColor = '#FFC107';
+                    fillColor = '#FFC107'; // Amber for mostly explored
                 } else if (percentage > 0.3) {
-                    fillColor = '#2196F3';
+                    fillColor = '#2196F3'; // Blue for partially explored
                 } else if (percentage > 0) {
-                    fillColor = '#9C27B0';
+                    fillColor = '#9C27B0'; // Purple for just started
                 }
 
                 return {
@@ -302,34 +319,18 @@ const DistrictMapView: React.FC<DistrictMapViewProps> = ({
             geoJsonLayerRef.current = L.geoJSON(districtGeoJson, {
                 style: getDistrictStyle,
                 onEachFeature: (feature, layer) => {
-                    const originalDistrictName = feature.properties.STADTTNAME?.trim();
-                    const districtNameNorm = originalDistrictName.toLowerCase().trim();
+                    const {
+                        originalDistrictName,
+                        visitedCount,
+                        totalSites,
+                        isCompleted
+                    } = getDistrictProgress(feature);
 
-                    // Find districtData and progress using normalized names
-                    const districtData = districts.find(
-                        d => d.name && d.name.toLowerCase().trim() === districtNameNorm
-                    );
-                    const districtProgress = progressData?.districtProgress?.find(
-                        (d: any) => d.district && d.district.toLowerCase().trim() === districtNameNorm
-                    );
-
-                    // Visited count
-                    let visitedCount = districtProgress?.visitedSites?.length || 0;
-                    let totalSites = districtData?.siteCount || districtProgress?.totalSites || 0;
-
-                    // Fallback: count from recentVisits if visitedCount is 0
-                    if (!visitedCount && progressData?.recentVisits) {
-                        visitedCount = progressData.recentVisits.filter(
-                            (visit: any) => visit.site?.district && visit.site.district.toLowerCase().trim() === districtNameNorm
-                        ).length;
-                    }
-
-                    // Fallback: if totalSites is still 0, show '?'
                     const totalSitesDisplay = totalSites > 0 ? totalSites : '?';
 
                     layer.bindTooltip(
-                        `<strong>${districtData?.name || originalDistrictName}</strong><br>
-                        Explored: ${visitedCount}/${totalSitesDisplay} sites`
+                        `<strong>${originalDistrictName}</strong><br>
+                        Explored: ${visitedCount}/${totalSitesDisplay} sites${isCompleted ? ' ✅' : ''}`
                     );
 
                     layer.on('click', () => {

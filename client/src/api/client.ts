@@ -22,11 +22,16 @@ apiClient.interceptors.response.use(
 
     // Handle specific status codes
     switch (status) {
+      // case 401:
+      //   toast.error("Session expired. Please login again.");
+      //   // Clear user data and redirect to login
+      //   localStorage.removeItem("user");
+      //   window.location.href = "/login";
+      //   break;
+
       case 401:
-        toast.error("Session expired. Please login again.");
-        // Clear user data and redirect to login
-        localStorage.removeItem("user");
-        window.location.href = "/login";
+        // With httpOnly cookies, let the auth context handle authentication state
+        // Don't show toast or redirect to prevent repetitive reloads
         break;
 
       case 403:

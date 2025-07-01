@@ -11,7 +11,6 @@ class BackgroundDataLoader {
     }
 
     this.isLoading = true;
-    ("🚀 Starting background district data preload...");
 
     this.loadPromise = this.loadData();
     return this.loadPromise;
@@ -24,7 +23,6 @@ class BackgroundDataLoader {
       const cachedDistricts = simpleCache.get("districts-list");
 
       if (cachedGeoJson && cachedDistricts) {
-        ("✅ District data already cached");
         return;
       }
 
@@ -63,11 +61,10 @@ class BackgroundDataLoader {
                 response.data,
                 60 * 60 * 1000
               );
-              ("🗺️ Background: District GeoJSON cached");
               return response.data;
             })
             .catch((error) => {
-              ("⚠️ Background: District GeoJSON failed, will try on-demand");
+              console.error("⚠️ Background: District GeoJSON request failed", error);
               return null;
             })
         );
@@ -103,13 +100,12 @@ class BackgroundDataLoader {
           );
 
           simpleCache.set("districts-list", districts, 15 * 60 * 1000);
-          ("📋 Background: Created districts list from sites");
         } catch (fallbackError) {
-          ("⚠️ Background: All district loading methods failed");
+          console.error(
+            "⚠️ Background: Failed to create districts list from cultural sites"
+          );
         }
       }
-
-      ("✅ Background district data loading completed");
     } catch (error) {
       console.error("❌ Background district data loading failed:", error);
     } finally {

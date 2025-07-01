@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
     Box,
     Typography,
@@ -8,7 +8,6 @@ import {
     Stack,
     Card,
     CardContent,
-    Grid, // Use Grid2 for better TypeScript support
     CircularProgress,
     LinearProgress,
     List,
@@ -24,7 +23,9 @@ import {
     Tab,
     Paper,
     useTheme,
+    DialogActions,
 } from "@mui/material";
+import Grid from '@mui/material/Grid';
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import PlaceIcon from '@mui/icons-material/Place';
@@ -42,6 +43,198 @@ import { apiClient } from "../api/client";
 import BadgeShowcase from "../components/badges/BadgeShowcase";
 import UserProfileEdit from "../components/profile/UserProfileEdit";
 import { simpleCache } from "../utils/simpleCache";
+import toast from "react-hot-toast";
+
+interface Site {
+    _id: string;
+    name: string;
+    category: string;
+    district: string;
+    description?: string;
+    address?: {
+        street?: string;
+        housenumber?: string;
+        postcode?: string;
+        city?: string;
+    };
+    // Add other properties as needed
+}
+
+interface FavoritesDialogProps {
+    open: boolean;
+    onClose: () => void;
+    sites: Site[];
+    loading: boolean;
+    districtProgressData: any[];
+    progressData: any;
+}
+
+// Helper function to get district color based on progress
+const getDistrictColor = (districtName: string, districtProgressData: any[]) => {
+    const districtProgress = districtProgressData.find(d => d.name === districtName);
+    if (!districtProgress) return '#CCCCCC'; // Default grey for unexplored
+
+    const { completed, percentage } = districtProgress;
+    if (completed) {
+        return '#4CAF50'; // Green for fully completed
+    } else if (percentage > 60) {
+        return '#FFC107'; // Amber for mostly explored
+    } else if (percentage > 30) {
+        return '#2196F3'; // Blue for partially explored
+    } else if (percentage > 0) {
+        return '#9C27B0'; // Purple for just started
+    }
+    return '#CCCCCC'; // Default grey
+};
+
+// Helper function to check if a site is visited
+const isSiteVisited = (siteId: string, progressData: any) => {
+    if (!progressData) return false;
+
+    // Check in recent visits
+    if (progressData.recentVisits?.some((visit: any) => visit?.site?._id === siteId)) {
+        return true;
+    }
+
+    // Check in category progress
+    if (progressData.categoryProgress) {
+        return progressData.categoryProgress.some((category: any) =>
+            category.visitedSites?.some((site: any) => site._id === siteId)
+        );
+    }
+
+    return false;
+};
+
+const FavoritesDialog: React.FC<FavoritesDialogProps> = ({
+    open,
+    onClose,
+    sites,
+    loading
+}) => {
+    const theme = useTheme();
+
+    return (
+        <Dialog
+            open={open}
+            onClose={onClose}
+            maxWidth="sm"
+            fullWidth
+            PaperProps={{
+                sx: {
+                    borderRadius: 3,
+                    m: { xs: 1, sm: 3 },
+                    background: theme.palette.mode === 'dark'
+                        ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.95) 0%, rgba(50, 50, 50, 0.95) 100%)'
+                        : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 250, 250, 0.95) 100%)',
+                    backdropFilter: 'blur(10px)',
+                }
+            }}
+        >
+            <DialogTitle sx={{ pb: 1 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                        <Avatar sx={{ bgcolor: 'warning.main', width: 40, height: 40 }}>
+                            <StarIcon sx={{ color: '#fff', fontSize: 24 }} />
+                        </Avatar>
+                        <Typography variant="h5" fontWeight={700} color="text.primary">
+                            Your Favorite Sites
+                        </Typography>
+                    </Stack>
+                    <IconButton
+                        onClick={onClose}
+                        size="small"
+                        sx={{
+                            bgcolor: 'rgba(255, 255, 255, 0.1)',
+                            '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
+                        }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                </Stack>
+            </DialogTitle>
+            <DialogContent dividers sx={{ bgcolor: 'transparent', px: { xs: 1, sm: 3 }, py: 2 }}>
+                {loading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+                        <CircularProgress size={48} sx={{ color: 'warning.main' }} />
+                    </Box>
+                ) : sites.length === 0 ? (
+                    <Box textAlign="center" py={6}>
+                        <Avatar sx={{ width: 64, height: 64, bgcolor: 'warning.main', mx: 'auto', mb: 2 }}>
+                            <StarIcon sx={{ fontSize: 36, color: '#fff' }} />
+                        </Avatar>
+                        <Typography variant="h6" color="text.secondary" gutterBottom fontWeight={600}>
+                            No favorites yet
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 300, mx: 'auto' }}>
+                            Start exploring cultural sites and mark them as favorites to see them here!
+                        </Typography>
+                    </Box>
+                ) : (
+                    <List sx={{ pt: 0 }}>
+                        {sites.map((site) => (
+                            <ListItem
+                                key={site._id}
+                                sx={{
+                                    borderRadius: 2,
+                                    mb: 2,
+                                    boxShadow: theme.palette.mode === 'dark'
+                                        ? '0 2px 8px rgba(0,0,0,0.4)'
+                                        : '0 2px 8px rgba(0,0,0,0.08)',
+                                    background: theme.palette.mode === 'dark'
+                                        ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.85) 0%, rgba(50, 50, 50, 0.85) 100%)'
+                                        : 'linear-gradient(135deg, #fff 0%, #f9fafb 100%)',
+                                    border: `1px solid ${theme.palette.warning.light}33`,
+                                    '&:hover': {
+                                        boxShadow: theme.palette.mode === 'dark'
+                                            ? '0 4px 16px #FFD70044'
+                                            : '0 4px 16px #FFD70022',
+                                        borderColor: theme.palette.warning.main,
+                                    },
+                                    transition: 'all 0.2s',
+                                }}
+                            >
+                                <ListItemIcon sx={{ minWidth: 44 }}>
+                                    <Avatar sx={{ bgcolor: 'warning.light', width: 36, height: 36 }}>
+                                        <StarIcon sx={{ color: '#fff', fontSize: 20 }} />
+                                    </Avatar>
+                                </ListItemIcon>
+                                <ListItemText
+                                    primary={<Typography variant="body1" fontWeight={600} color="text.primary" component="span">{site.name}</Typography>}
+                                    secondary={site.category ? (
+                                        <Typography variant="body2" color="text.secondary" component="span">
+                                            {site.category.charAt(0).toUpperCase() + site.category.slice(1)}
+                                        </Typography>
+                                    ) : null}
+                                />
+                            </ListItem>
+                        ))}
+                    </List>
+                )}
+            </DialogContent>
+            <DialogActions sx={{ p: 3, bgcolor: 'transparent' }}>
+                <Button
+                    onClick={onClose}
+                    variant="contained"
+                    sx={{
+                        borderRadius: 2,
+                        px: 3,
+                        py: 1,
+                        background: 'linear-gradient(135deg, #FFD700 0%, #FFA000 100%)',
+                        color: 'white',
+                        fontWeight: 600,
+                        boxShadow: '0 2px 8px #FFD70033',
+                        '&:hover': {
+                            background: 'linear-gradient(135deg, #FFA000 0%, #FF8F00 100%)',
+                        }
+                    }}
+                >
+                    Close
+                </Button>
+            </DialogActions>
+        </Dialog>
+    );
+};
 
 const rankConfig = [
     { min: 0, label: "Explorer", color: "#64748b", icon: <EmojiEventsIcon />, gradient: "linear-gradient(135deg, #64748b 0%, #94a3b8 100%)" },
@@ -131,6 +324,43 @@ const Dashboard = () => {
     const [deleteStatus, setDeleteStatus] = useState<string | null>(null);
     const [assignDistrictsLoading, setAssignDistrictsLoading] = useState(false);
     const [assignDistrictsStatus, setAssignDistrictsStatus] = useState<string | null>(null);
+    const [refreshCountsLoading, setRefreshCountsLoading] = useState(false);
+    const [refreshCountsStatus, setRefreshCountsStatus] = useState<string | null>(null);
+    const [currentFavoriteCount, setCurrentFavoriteCount] = useState(0);
+
+    // Memoize progress data to avoid unnecessary re-renders
+    const favoriteCount = currentFavoriteCount;
+    const visitedCount = useMemo(() => progressData?.totalVisits || 0, [progressData]);
+    const badgeCount = useMemo(() => {
+        if (!progressData) return 0;
+
+        let count = 0;
+
+        // Visit milestone badges
+        if (visitedCount >= 1) count++; // First Steps
+        if (visitedCount >= 5) count++; // Adventurer
+        if (visitedCount >= 15) count++; // Trailblazer
+        if (visitedCount >= 30) count++; // Cultural Hero
+        if (visitedCount >= 50) count++; // Legend
+
+        // Category completion badges
+        count += progressData.categoryProgress?.filter((c: any) => c.completed)?.length || 0;
+
+        // District completion badges
+        count += progressData.districtProgress?.filter((d: any) => d.completed)?.length || 0;
+
+        // Additional achievement badges
+        const museumVisits = progressData.categoryProgress?.find((c: any) => c.category === 'museum')?.visitedSites?.length || 0;
+        const restaurantVisits = progressData.categoryProgress?.find((c: any) => c.category === 'restaurant')?.visitedSites?.length || 0;
+
+        if (museumVisits >= 5) count++; // Museum Enthusiast
+        if (restaurantVisits >= 10) count++; // Culinary Explorer
+        // Weekend Explorer badge would need special tracking, so not counted for now
+
+        return count;
+    }, [progressData, visitedCount]);
+    const rank = useMemo(() => getRank(visitedCount), [visitedCount]);
+
 
     // Fetch user progress with caching
     useEffect(() => {
@@ -146,7 +376,7 @@ const Dashboard = () => {
                 let cachedProgress = simpleCache.get(cacheKey);
 
                 if (cachedProgress) {
-                    ('✅ Using cached dashboard progress');
+                    // ('✅ Using cached dashboard progress');
                     setProgressData(cachedProgress);
                     setLoading(false);
                     return;
@@ -166,10 +396,9 @@ const Dashboard = () => {
 
                 setProgressData(progressData);
                 simpleCache.set(cacheKey, progressData, 3 * 60 * 1000);
-                ('💾 Cached dashboard progress');
+                // ('💾 Cached dashboard progress');
 
             } catch (err) {
-                console.error('Failed to fetch progress data:', err);
                 setError('Failed to load your exploration progress');
 
                 // Set empty progress data to prevent crashes
@@ -209,13 +438,34 @@ const Dashboard = () => {
                 ('💾 Cached districts list');
 
             } catch (err) {
-                console.error('Failed to fetch districts:', err);
                 setDistricts([]); // Set empty array to prevent crashes
             }
         };
 
         fetchDistricts();
     }, []);
+
+    // Fetch current favorite count - always fresh data
+    useEffect(() => {
+        const fetchFavoriteCount = async () => {
+            if (!user) return;
+
+            try {
+                const response = await axios.get('http://localhost:5000/api/favorites', {
+                    withCredentials: true
+                });
+
+                const favorites = Array.isArray(response.data) ? response.data : [];
+                setCurrentFavoriteCount(favorites.length);
+
+            } catch (error) {
+                console.error('Failed to fetch favorite count:', error);
+                setCurrentFavoriteCount(0);
+            }
+        };
+
+        fetchFavoriteCount();
+    }, [user]);
 
     // Fetch sites for a specific district when selected with caching
     const handleDistrictClick = async (districtName: string) => {
@@ -241,7 +491,7 @@ const Dashboard = () => {
             simpleCache.set(cacheKey, response.data, 10 * 60 * 1000);
 
         } catch (err) {
-            console.error(`Failed to fetch sites for district ${districtName}:`, err);
+            toast.error(`Failed to fetch sites for district ${districtName}`)
         }
     };
 
@@ -249,46 +499,30 @@ const Dashboard = () => {
         setTabValue(newValue);
     };
 
-    // Fetch favorite sites details with caching
+    // Fetch favorite sites details - always fresh data
     const handleFavoritesClick = async () => {
-
         if (!user) {
-            ('No user, cannot fetch favorites');
+            console.log('No user, cannot fetch favorites');
             return;
         }
 
-        // Check if we already have favorites data in progressData
-        if (progressData?.favoriteSites?.length) {
-            setFavoriteSites(progressData.favoriteSites);
-            setFavoritesDialogOpen(true);
-            return;
-        }
-
-        // Try cache first - fix user ID access
-        const cacheKey = `user-favorites-${user.id || (user as any)._id}`;
-        let cachedFavorites = simpleCache.get(cacheKey);
-
-        if (cachedFavorites) {
-            setFavoriteSites(cachedFavorites);
-            setFavoritesDialogOpen(true);
-            return;
-        }
-
-        // If no cached data and no favorites in progressData, fetch fresh
+        // Always fetch fresh favorites data
         try {
             setFavoritesLoading(true);
             const response = await axios.get('http://localhost:5000/api/favorites', {
                 withCredentials: true
             });
 
-            setFavoriteSites(response.data);
+            const favorites = Array.isArray(response.data) ? response.data : [];
+            setFavoriteSites(favorites);
 
-            // Cache for 5 minutes (favorites change moderately often)
-            simpleCache.set(cacheKey, response.data, 5 * 60 * 1000);
+            // Update the current favorite count
+            setCurrentFavoriteCount(favorites.length);
 
         } catch (error) {
             console.error('Failed to fetch favorites:', error);
             setFavoriteSites([]);
+            setCurrentFavoriteCount(0);
         } finally {
             setFavoritesLoading(false);
         }
@@ -377,7 +611,7 @@ const Dashboard = () => {
                 simpleCache.set(cacheKey, calculatedProgress, 5 * 60 * 1000);
 
             } catch (error) {
-                console.error('Error calculating district progress:', error);
+                console.error('Failed to calculate district progress:', error);
                 setDistrictProgressData([]);
             } finally {
                 setDistrictProgressLoading(false);
@@ -555,6 +789,36 @@ const Dashboard = () => {
         }
     };
 
+    // Refresh district site counts
+    const handleRefreshDistrictCounts = async () => {
+        if (user?.role !== 'admin') {
+            setRefreshCountsStatus('Unauthorized: Admin access required');
+            return;
+        }
+        try {
+            setRefreshCountsLoading(true);
+            setRefreshCountsStatus('Refreshing district site counts...');
+            const response = await axios.post(
+                'http://localhost:5000/api/districts/refresh-counts',
+                {},
+                { withCredentials: true }
+            );
+            setRefreshCountsStatus(response.data.message || 'District site counts refreshed successfully');
+            simpleCache.clear();
+            // Refresh districts data
+            const districtsResponse = await axios.get('http://localhost:5000/api/districts/list');
+            setDistricts(districtsResponse.data);
+        } catch (error: any) {
+            console.error('Refresh district counts failed:', error);
+            setRefreshCountsStatus(
+                error.response?.data?.error || 'Failed to refresh district counts'
+            );
+        } finally {
+            setRefreshCountsLoading(false);
+            setTimeout(() => setRefreshCountsStatus(null), 10000);
+        }
+    };
+
     if (loading) {
         return (
             <Box
@@ -594,12 +858,6 @@ const Dashboard = () => {
             </Paper>
         );
     }
-
-    // Use progressData for badges if available, otherwise fallback to user data
-    const visitedCount = progressData?.totalVisits || 0;
-    const favoriteCount = progressData?.favoriteSites?.length || 0;
-    const badgeCount = progressData?.totalBadges || 0;
-    const rank = getRank(visitedCount);
 
     return (
         <Box sx={{
@@ -664,7 +922,7 @@ const Dashboard = () => {
 
                                 <Grid container spacing={3}>
                                     {/* Admin Status */}
-                                    <Grid xs={12} md={3}>
+                                    <Grid size={{ xs: 12, md: 3 }}>
                                         <Card sx={{ bgcolor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
                                             <CardContent sx={{ textAlign: 'center', py: 2 }}>
                                                 <AdminPanelSettingsIcon sx={{ fontSize: 40, mb: 1, color: 'white' }} />
@@ -679,7 +937,7 @@ const Dashboard = () => {
                                     </Grid>
 
                                     {/* Import GeoJSON Section */}
-                                    <Grid xs={12} md={3}>
+                                    <Grid size={{ xs: 12, md: 3 }}>
                                         <Card sx={{ bgcolor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
                                             <CardContent sx={{ textAlign: 'center', py: 2 }}>
                                                 <Button
@@ -705,7 +963,7 @@ const Dashboard = () => {
                                     </Grid>
 
                                     {/* Import Districts Section */}
-                                    <Grid xs={12} md={3}>
+                                    <Grid size={{ xs: 12, md: 3 }}>
                                         <Card sx={{ bgcolor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
                                             <CardContent sx={{ textAlign: 'center', py: 2 }}>
                                                 <Button
@@ -731,7 +989,7 @@ const Dashboard = () => {
                                     </Grid>
 
                                     {/* Delete Section */}
-                                    <Grid xs={12} md={3}>
+                                    <Grid size={{ xs: 12, md: 3 }}>
                                         <Card sx={{ bgcolor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
                                             <CardContent sx={{ textAlign: 'center', py: 2 }}>
                                                 <Button
@@ -757,7 +1015,7 @@ const Dashboard = () => {
                                     </Grid>
 
                                     {/* Assign Districts Section */}
-                                    <Grid xs={12} md={3}>
+                                    <Grid size={{ xs: 12, md: 3 }}>
                                         <Card sx={{ bgcolor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
                                             <CardContent sx={{ textAlign: 'center', py: 2 }}>
                                                 <Button
@@ -781,10 +1039,36 @@ const Dashboard = () => {
                                             </CardContent>
                                         </Card>
                                     </Grid>
+
+                                    {/* Refresh District Counts Section */}
+                                    <Grid size={{ xs: 12, md: 3 }}>
+                                        <Card sx={{ bgcolor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
+                                            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                                                <Button
+                                                    variant="contained"
+                                                    startIcon={refreshCountsLoading ? <CircularProgress size={20} color="inherit" /> : <MapIcon />}
+                                                    onClick={handleRefreshDistrictCounts}
+                                                    disabled={importGeojsonLoading || importDistrictsLoading || deleteLoading || assignDistrictsLoading || refreshCountsLoading}
+                                                    sx={{
+                                                        bgcolor: 'rgba(34, 197, 94, 0.9)',
+                                                        '&:hover': { bgcolor: 'rgba(34, 197, 94, 1)' },
+                                                        '&:disabled': { bgcolor: 'rgba(100, 100, 100, 0.5)' },
+                                                        mb: 1,
+                                                        minWidth: 150
+                                                    }}
+                                                >
+                                                    {refreshCountsLoading ? 'Refreshing...' : 'Refresh Counts'}
+                                                </Button>
+                                                <Typography variant="caption" display="block" sx={{ opacity: 0.8 }}>
+                                                    Update district site counts
+                                                </Typography>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
                                 </Grid>
 
                                 {/* Status Messages */}
-                                {(importStatus || deleteStatus || assignDistrictsStatus) && (
+                                {(importStatus || deleteStatus || assignDistrictsStatus || refreshCountsStatus) && (
                                     <Box sx={{ mt: 3 }}>
                                         {importStatus && (
                                             <Paper
@@ -841,6 +1125,24 @@ const Dashboard = () => {
                                                 </Typography>
                                             </Paper>
                                         )}
+                                        {refreshCountsStatus && (
+                                            <Paper
+                                                sx={{
+                                                    p: 2,
+                                                    bgcolor: refreshCountsStatus.includes('failed') || refreshCountsStatus.includes('Unauthorized')
+                                                        ? 'rgba(239, 68, 68, 0.1)'
+                                                        : 'rgba(34, 197, 94, 0.1)',
+                                                    border: refreshCountsStatus.includes('failed') || refreshCountsStatus.includes('Unauthorized')
+                                                        ? '1px solid rgba(239, 68, 68, 0.3)'
+                                                        : '1px solid rgba(34, 197, 94, 0.3)',
+                                                    borderRadius: 2
+                                                }}
+                                            >
+                                                <Typography variant="body2" color="white">
+                                                    📊 Refresh Counts: {refreshCountsStatus}
+                                                </Typography>
+                                            </Paper>
+                                        )}
                                     </Box>
                                 )}
                             </CardContent>
@@ -859,7 +1161,7 @@ const Dashboard = () => {
                 {/* Stats Overview Cards - Fix Grid item prop */}
                 <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: { xs: 2, sm: 4 } }}>
                     {/* Rank Card */}
-                    <Grid xs={12} sm={6} md={3}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card
                             sx={{
                                 background: rank.gradient,
@@ -891,7 +1193,7 @@ const Dashboard = () => {
                     </Grid>
 
                     {/* Sites Visited */}
-                    <Grid xs={12} sm={6} md={3}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card sx={{ borderRadius: 3, height: '100%' }}>
                             <CardContent sx={{ textAlign: 'center', py: 3 }}>
                                 <Avatar
@@ -916,7 +1218,7 @@ const Dashboard = () => {
                     </Grid>
 
                     {/* Badges Earned */}
-                    <Grid xs={12} sm={6} md={3}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card sx={{ borderRadius: 3, height: '100%' }}>
                             <CardContent sx={{ textAlign: 'center', py: 3 }}>
                                 <Avatar
@@ -941,7 +1243,7 @@ const Dashboard = () => {
                     </Grid>
 
                     {/* Favorites */}
-                    <Grid xs={12} sm={6} md={3}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card
                             sx={{
                                 borderRadius: 3,
@@ -983,7 +1285,7 @@ const Dashboard = () => {
                 {/* Progress Section */}
                 <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: { xs: 2, sm: 4 } }}>
                     {/* Category Progress */}
-                    <Grid xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <Card sx={{ borderRadius: 3, height: '100%' }}>
                             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                                 <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
@@ -1002,9 +1304,7 @@ const Dashboard = () => {
                                             Loading category data...
                                         </Typography>
                                     </Box>
-                                ) : progressData?.categoryProgress &&
-                                    Array.isArray(progressData.categoryProgress) &&
-                                    progressData.categoryProgress.length > 0 ? (
+                                ) : progressData?.categoryProgress && progressData.categoryProgress.length > 0 ? (
                                     <Stack spacing={3}>
                                         {progressData.categoryProgress.map((category) => {
                                             if (!category || !category.category) return null;
@@ -1058,7 +1358,7 @@ const Dashboard = () => {
                     </Grid>
 
                     {/* District Progress */}
-                    <Grid xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <Card sx={{ borderRadius: 3, height: '100%' }}>
                             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                                 <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
@@ -1083,12 +1383,8 @@ const Dashboard = () => {
                                         }}
                                     >
                                         <CircularProgress size={40} thickness={4} />
-                                        <Typography
-                                            variant="body2"
-                                            color="text.secondary"
-                                            sx={{ mt: 2, textAlign: 'center' }}
-                                        >
-                                            Calculating district progress...
+                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                            Loading district data...
                                         </Typography>
                                     </Box>
                                 ) : districtProgressData.length > 0 ? (
@@ -1113,57 +1409,41 @@ const Dashboard = () => {
                                             },
                                         }}
                                     >
-                                        <Stack spacing={3}>
+                                        <List disablePadding>
                                             {districtProgressData.map((district) => (
-                                                <Box
-                                                    key={district.name}
-                                                    onClick={() => handleDistrictClick(district.name)}
-                                                    sx={{
-                                                        cursor: 'pointer',
-                                                        p: 1,
-                                                        borderRadius: 1,
-                                                        transition: 'all 0.2s',
-                                                        '&:hover': {
-                                                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-                                                        }
-                                                    }}
-                                                >
-                                                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                                                        <Typography variant="body1" fontWeight={500}>
-                                                            {district.name || "Unknown"}
-                                                        </Typography>
-                                                        <Chip
-                                                            label={`${district.visitedCount}/${district.totalSites}`}
-                                                            size="small"
-                                                            color={district.completed ? "success" : "default"}
-                                                            variant={district.completed ? "filled" : "outlined"}
+                                                <ListItem key={district.name} sx={{ px: 0, py: 1.5 }}>
+                                                    <ListItemIcon sx={{ minWidth: 40 }}>
+                                                        <MapIcon
+                                                            color={district.completed ? "success" : "primary"}
                                                         />
-                                                    </Stack>
-                                                    <LinearProgress
-                                                        variant="determinate"
-                                                        value={district.percentage}
-                                                        color={district.completed ? "success" : "primary"}
-                                                        sx={{
-                                                            height: 10,
-                                                            borderRadius: 2,
-                                                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-                                                        }}
+                                                    </ListItemIcon>
+                                                    <ListItemText
+                                                        primary={
+                                                            <Typography variant="body1" fontWeight={500} component="span">
+                                                                {district.name}
+                                                            </Typography>
+                                                        }
+                                                        secondary={
+                                                            <Typography variant="body2" color="text.secondary" component="span">
+                                                                Explored: {district.visitedCount} / {district.totalSites}
+                                                            </Typography>
+                                                        }
                                                     />
-                                                </Box>
+                                                    <Box sx={{ width: 80, textAlign: 'right' }}>
+                                                        <Typography
+                                                            variant="body2"
+                                                            fontWeight={600}
+                                                            color={district.completed ? "success.main" : "text.secondary"}
+                                                        >
+                                                            {district.percentage.toFixed(0)}%
+                                                        </Typography>
+                                                    </Box>
+                                                </ListItem>
                                             ))}
-                                        </Stack>
+                                        </List>
                                     </Box>
                                 ) : !loading && !districtProgressLoading ? (
-                                    <Box
-                                        display="flex"
-                                        justifyContent="center"
-                                        alignItems="center"
-                                        flexDirection="column"
-                                        sx={{
-                                            py: 4,
-                                            minHeight: 150
-                                        }}
-                                    >
+                                    <Box textAlign="center" py={4}>
                                         <MapIcon
                                             sx={{
                                                 fontSize: 48,
@@ -1172,8 +1452,18 @@ const Dashboard = () => {
                                             }}
                                         />
                                         <Typography variant="body2" color="text.secondary" textAlign="center">
-                                            No district data available
+                                            No district data available yet
                                         </Typography>
+                                        {user?.role === 'admin' && (
+                                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                                                Import GeoJSON and assign districts to populate
+                                            </Typography>
+                                        )}
+                                        {user?.role !== 'admin' && (
+                                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                                                Start exploring to see your district progress!
+                                            </Typography>
+                                        )}
                                     </Box>
                                 ) : null}
                             </CardContent>
@@ -1309,19 +1599,19 @@ const Dashboard = () => {
                                             </ListItemIcon>
                                             <ListItemText
                                                 primary={
-                                                    <Typography variant="body1" fontWeight={500}>
+                                                    <Typography variant="body1" fontWeight={500} component="span">
                                                         {visit.site?.name}
                                                     </Typography>
                                                 }
                                                 secondary={
-                                                    <Stack spacing={0.5}>
-                                                        <Typography variant="body2" color="text.secondary">
+                                                    <Box component="span" sx={{ display: 'block' }}>
+                                                        <Typography variant="body2" color="text.secondary" component="span" sx={{ display: 'block' }}>
                                                             {visit.site?.category?.charAt(0).toUpperCase() + visit.site?.category?.slice(1)} • {visit.site?.district || "Unknown district"}
                                                         </Typography>
-                                                        <Typography variant="caption" color="text.secondary">
+                                                        <Typography variant="caption" color="text.secondary" component="span" sx={{ display: 'block' }}>
                                                             Visited on {new Date(visit?.visitDate).toLocaleDateString()}
                                                         </Typography>
-                                                    </Stack>
+                                                    </Box>
                                                 }
                                             />
                                         </ListItem>
@@ -1434,20 +1724,20 @@ const Dashboard = () => {
                                                 </ListItemIcon>
                                                 <ListItemText
                                                     primary={
-                                                        <Stack direction="row" spacing={1} alignItems="center">
-                                                            <Typography fontWeight={500}>{site.name}</Typography>
+                                                        <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                            <Typography fontWeight={500} component="span">{site.name}</Typography>
                                                             {isVisited && (
                                                                 <Chip label="Visited" color="success" size="small" />
                                                             )}
-                                                        </Stack>
+                                                        </Box>
                                                     }
                                                     secondary={
-                                                        <Stack spacing={0.5}>
-                                                            <Typography variant="body2">
+                                                        <Box component="span" sx={{ display: 'block' }}>
+                                                            <Typography variant="body2" component="span" sx={{ display: 'block' }}>
                                                                 {site.category.charAt(0).toUpperCase() + site.category.slice(1)}
                                                             </Typography>
                                                             {site.address && (
-                                                                <Typography variant="body2" color="text.secondary">
+                                                                <Typography variant="body2" color="text.secondary" component="span" sx={{ display: 'block' }}>
                                                                     {[
                                                                         site.address.street,
                                                                         site.address.housenumber,
@@ -1457,12 +1747,12 @@ const Dashboard = () => {
                                                                 </Typography>
                                                             )}
                                                             {site.description && (
-                                                                <Typography variant="body2" color="text.secondary">
+                                                                <Typography variant="body2" color="text.secondary" component="span" sx={{ display: 'block' }}>
                                                                     {site.description.substring(0, 100)}
                                                                     {site.description.length > 100 ? "..." : ""}
                                                                 </Typography>
                                                             )}
-                                                        </Stack>
+                                                        </Box>
                                                     }
                                                 />
                                             </ListItem>
@@ -1476,177 +1766,14 @@ const Dashboard = () => {
                 </Dialog>
 
                 {/* Favorites Dialog */}
-                <Dialog
+                <FavoritesDialog
                     open={favoritesDialogOpen}
                     onClose={() => setFavoritesDialogOpen(false)}
-                    maxWidth="md"
-                    fullWidth
-                    PaperProps={{
-                        sx: { borderRadius: 3, m: { xs: 1, sm: 3 } }
-                    }}
-                >
-                    <DialogTitle>
-                        <Stack direction="row" justifyContent="space-between" alignItems="center">
-                            <Stack direction="row" alignItems="center" spacing={1}>
-                                <LocationOnIcon color="warning" />
-                                <Typography variant="h6" fontWeight={600}>
-                                    Your Favorite Sites ({favoriteCount})
-                                </Typography>
-                            </Stack>
-                            <IconButton onClick={() => setFavoritesDialogOpen(false)} size="small">
-                                <CloseIcon />
-                            </IconButton>
-                        </Stack>
-                    </DialogTitle>
-                    <DialogContent>
-                        {favoritesLoading ? (
-                            <Box display="flex" justifyContent="center" alignItems="center" py={4}>
-                                <CircularProgress size={40} />
-                                <Typography variant="body1" sx={{ ml: 2 }}>
-                                    Loading your favorite sites...
-                                </Typography>
-                            </Box>
-                        ) : favoriteCount === 0 ? (
-                            <Box textAlign="center" py={4}>
-                                <LocationOnIcon
-                                    sx={{
-                                        fontSize: 64,
-                                        color: 'text.secondary',
-                                        mb: 2
-                                    }}
-                                />
-                                <Typography variant="h6" color="text.secondary" gutterBottom>
-                                    No Favorites Yet
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    Start exploring and add sites to your favorites!
-                                </Typography>
-                            </Box>
-                        ) : favoriteSites.length === 0 ? (
-                            <Box textAlign="center" py={4}>
-                                <Typography variant="h6" color="text.secondary" gutterBottom>
-                                    Unable to load favorite sites
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    There was an issue loading your favorite sites. Please try again.
-                                </Typography>
-                                <Button
-                                    variant="outlined"
-                                    onClick={handleFavoritesClick}
-                                    sx={{ mt: 2 }}
-                                >
-                                    Retry
-                                </Button>
-                            </Box>
-                        ) : (
-                            <List>
-                                {favoriteSites.map((site) => {
-                                    const isVisitedInRecentVisits = progressData?.recentVisits?.some(
-                                        visit => visit.site._id === site._id
-                                    );
-
-                                    const isVisitedInCategories = progressData?.categoryProgress?.some(category =>
-                                        category.visitedSites.some((visitedSite: any) => {
-                                            if (typeof visitedSite === 'string') {
-                                                return visitedSite === site._id;
-                                            }
-                                            return visitedSite._id === site._id;
-                                        })
-                                    );
-
-                                    const isVisitedInDistricts = progressData?.districtProgress?.some(district =>
-                                        district.visitedSites.some((visitedSite: any) => {
-                                            if (typeof visitedSite === 'string') {
-                                                return visitedSite === site._id;
-                                            }
-                                            return visitedSite._id === site._id;
-                                        })
-                                    );
-
-                                    const isVisited = isVisitedInRecentVisits || isVisitedInCategories || isVisitedInDistricts;
-
-                                    return (
-                                        <ListItem
-                                            key={site._id}
-                                            sx={{
-                                                borderRadius: 2,
-                                                mb: 1,
-                                                border: `1px solid ${theme.palette.divider}`,
-                                                bgcolor: isVisited
-                                                    ? theme.palette.mode === 'dark'
-                                                        ? 'rgba(76, 175, 80, 0.2)'
-                                                        : 'rgba(76, 175, 80, 0.1)'
-                                                    : 'transparent',
-                                                '&:hover': {
-                                                    bgcolor: theme.palette.action.hover,
-                                                }
-                                            }}
-                                        >
-                                            <ListItemIcon>
-                                                <Stack direction="column" alignItems="center" spacing={0.5}>
-                                                    {isVisited ? (
-                                                        <PlaceIcon color="success" />
-                                                    ) : (
-                                                        <PlaceIcon color="warning" />
-                                                    )}
-                                                    <LocationOnIcon color="warning" sx={{ fontSize: 16 }} />
-                                                </Stack>
-                                            </ListItemIcon>
-
-                                            <ListItemText
-                                                primary={
-                                                    <Stack direction="row" spacing={1} alignItems="center">
-                                                        <Typography variant="body1" fontWeight={500}>
-                                                            {site.name}
-                                                        </Typography>
-                                                        {isVisited && (
-                                                            <Chip
-                                                                label="Visited"
-                                                                color="success"
-                                                                size="small"
-                                                                sx={{ fontSize: '0.7rem', height: 20 }}
-                                                            />
-                                                        )}
-                                                        <Chip
-                                                            label="❤️ Favorite"
-                                                            color="warning"
-                                                            variant="outlined"
-                                                            size="small"
-                                                            sx={{ fontSize: '0.7rem', height: 20 }}
-                                                        />
-                                                    </Stack>
-                                                }
-                                                secondary={
-                                                    <Stack spacing={0.5}>
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            {site.category?.charAt(0).toUpperCase() + site.category?.slice(1)} • {site.district || "Unknown district"}
-                                                        </Typography>
-                                                        {site.address && (
-                                                            <Typography variant="body2" color="text.secondary">
-                                                                📍 {[
-                                                                    site.address.street,
-                                                                    site.address.housenumber,
-                                                                    site.address.postcode,
-                                                                    site.address.city
-                                                                ].filter(Boolean).join(", ")}
-                                                            </Typography>
-                                                        )}
-                                                        {site.description && (
-                                                            <Typography variant="body2" color="text.secondary">
-                                                                {site.description.substring(0, 120)}
-                                                                {site.description.length > 120 ? "..." : ""}
-                                                            </Typography>
-                                                        )}
-                                                    </Stack>
-                                                }
-                                            />
-                                        </ListItem>
-                                    );
-                                })}
-                            </List>
-                        )}
-                    </DialogContent>
-                </Dialog>
+                    sites={favoriteSites}
+                    loading={favoritesLoading}
+                    districtProgressData={districtProgressData}
+                    progressData={progressData}
+                />
             </Box>
         </Box>
     );

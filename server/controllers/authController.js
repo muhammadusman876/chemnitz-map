@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import UserVisit from "../models/UserVisit.js";
 import bcrypt from "bcryptjs";
 import { generateToken } from "../middleware/authMiddleware.js";
 import path from "path";
@@ -118,6 +119,12 @@ export const getCurrentUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+
+    // Get user's visited sites from UserVisit model
+    const userVisit = await UserVisit.findOne({ userId: req.user.id });
+    const visitedSites =
+      userVisit?.visitedSites?.map((visit) => visit.site) || [];
+
     res.json({
       user: {
         id: user._id,
@@ -126,7 +133,7 @@ export const getCurrentUser = async (req, res) => {
         avatar: user.avatar,
         location: user.location,
         favorites: user.favorites,
-        visitedSites: user.visitedSites,
+        visitedSites: visitedSites,
         role: user.role,
         settings: user.settings,
         createdAt: user.createdAt,
@@ -261,14 +268,16 @@ export const deleteAvatar = async (req, res) => {
       const filename = user.avatar.replace("/uploads/", "");
       const avatarPath = path.join(__dirname, "../uploads", filename);
 
-      "🗑️ Attempting to delete:", avatarPath;
 
       // Check if file exists and delete it
       if (fs.existsSync(avatarPath)) {
         fs.unlinkSync(avatarPath);
         console.log("✅ Deleted avatar file:", avatarPath);
       } else {
-        console.warn("❗ File does not exist, cannot delete avatar:", avatarPath);
+        console.warn(
+          "❗ File does not exist, cannot delete avatar:",
+          avatarPath
+        );
       }
     }
 

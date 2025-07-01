@@ -32,6 +32,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import { useThemeMode } from "../../context/ThemeContext";
 import { useAuth } from "../../hooks/useAuth";
 import { backgroundLoader } from '../../services/backgroundLoader';
+import toast from "react-hot-toast";
 
 const Layout: React.FC = () => {
     const location = useLocation();
@@ -63,7 +64,8 @@ const Layout: React.FC = () => {
             await logout();
             navigate('/');
         } catch (error) {
-            console.error('Logout failed:', error);
+            // Handle logout error (e.g., show a notification)
+            toast.error("Logout failed. Please try again.");
         }
         handleClose();
     };
@@ -307,18 +309,6 @@ const Layout: React.FC = () => {
                                 <Typography variant="body2" color="text.secondary">
                                     {user?.email}
                                 </Typography>
-                                {user?.location && (
-                                    <Typography variant="caption" color="text.secondary">
-                                        📍 {
-                                            typeof user.location === 'string'
-                                                ? user.location
-                                                : user.location?.address ||
-                                                (user.location?.lat && user.location?.lng
-                                                    ? `${user.location.lat.toFixed(2)}, ${user.location.lng.toFixed(2)}`
-                                                    : 'Chemnitz')
-                                        }
-                                    </Typography>
-                                )}
                             </Box>,
                             <MenuItem
                                 key="dashboard"
@@ -441,14 +431,14 @@ const Layout: React.FC = () => {
                                 <DashboardIcon sx={{ mr: 1 }} /> Dashboard
                             </MenuItem>,
                             <MenuItem key="logout" onClick={handleLogout}>
-                                <LogoutIcon sx={{ mr: 1 }} /> Sign Out
+                                <LogoutIcon sx={{ mr: 1 }} /> Log Out
                             </MenuItem>
                         ] : [
                             <MenuItem key="login" component={Link} to="/login" onClick={() => setMobileNavOpen(false)}>
-                                <LoginIcon sx={{ mr: 1 }} /> Sign In
+                                <LoginIcon sx={{ mr: 1 }} /> Log  In
                             </MenuItem>,
                             <MenuItem key="register" component={Link} to="/register" onClick={() => setMobileNavOpen(false)}>
-                                <PersonAddIcon sx={{ mr: 1 }} /> Sign Up
+                                <PersonAddIcon sx={{ mr: 1 }} /> Register
                             </MenuItem>
                         ]}
                     </Menu>

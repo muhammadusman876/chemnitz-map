@@ -28,7 +28,7 @@ export const checkInToSite = async (req, res) => {
           site.coordinates.lat,
           site.coordinates.lng
         );
-        if (distance <= 50) {
+        if (distance <= 80) {
           checkedInSite = site;
           break;
         }
@@ -129,6 +129,18 @@ export const checkInToSite = async (req, res) => {
           districtProgress.completed = true;
           userVisit.totalBadges += 1;
         }
+      } else {
+        // Fallback: Initialize missing districtProgress entry
+        const totalSitesInDistrict = await CulturalSite.countDocuments({
+          district: checkedInSite.district,
+        });
+        userVisit.districtProgress.push({
+          district: checkedInSite.district,
+          totalSites: totalSitesInDistrict,
+          visitedSites: [checkedInSite._id],
+          completed: totalSitesInDistrict === 1, // Completed if this is the only site
+        });
+        userVisit.totalBadges += 1; // Award badge for discovering a new district
       }
 
       // Save changes
@@ -220,6 +232,52 @@ export const getUserProgress = async (req, res) => {
     }
 
     // User has progress data
+    // Ensure categoryProgress is properly initialized (for existing users)
+    if (
+      !userVisit.categoryProgress ||
+      userVisit.categoryProgress.length === 0
+    ) {
+      // Get all available categories
+      const allCategories = await CulturalSite.distinct("category");
+      userVisit.categoryProgress = [];
+
+      for (const category of allCategories) {
+        const totalSitesInCategory = await CulturalSite.countDocuments({
+          category,
+        });
+
+        // Find visited sites in this category from user's visit history
+        const visitedSitesInCategory = [];
+        for (const visit of userVisit.visitedSites) {
+          if (!visit || !visit.site) continue; // Skip if visit or site is null
+
+          let siteId;
+          if (typeof visit.site === "string") {
+            siteId = visit.site;
+          } else if (visit.site._id) {
+            siteId = visit.site._id;
+          } else {
+            continue; // Skip if we can't determine the site ID
+          }
+
+          const site = await CulturalSite.findById(siteId);
+          if (site && site.category === category) {
+            visitedSitesInCategory.push(siteId);
+          }
+        }
+
+        userVisit.categoryProgress.push({
+          category,
+          totalSites: totalSitesInCategory,
+          visitedSites: visitedSitesInCategory,
+          completed: visitedSitesInCategory.length >= totalSitesInCategory,
+        });
+      }
+
+      // Save the updated user visit data
+      await userVisit.save();
+    }
+
     return res.json({
       totalVisits: userVisit.visitedSites.length,
       totalBadges: userVisit.totalBadges,
@@ -369,29 +427,6 @@ export const getLeaderboard = async (req, res) => {
     });
   } catch (error) {
     console.error("Error getting leaderboard:", error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Reset user progress (admin or user request)
-export const resetUserProgress = async (req, res) => {
-  try {
-    const userId = req.params.userId || req.user?.id;
-    const isAdmin = req.user?.role === "admin";
-
-    // Allow reset only for own account or if admin
-    if (req.user?.id !== userId && !isAdmin) {
-      return res.status(403).json({ error: "Unauthorized" });
-    }
-
-    await UserVisit.findOneAndDelete({ userId });
-
-    // Update user reference
-    await User.findByIdAndUpdate(userId, { $unset: { progress: "" } });
-
-    return res.json({ message: "Progress reset successfully" });
-  } catch (error) {
-    console.error("Error resetting progress:", error);
     res.status(500).json({ error: error.message });
   }
 };
