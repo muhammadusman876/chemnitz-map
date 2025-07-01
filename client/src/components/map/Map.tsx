@@ -482,7 +482,7 @@ const Map: React.FC<MapProps> = ({
           }
         );
       }
-    }, 30000); // 5 minutes in ms
+    }, 3000); // 5 minutes in ms
 
     return () => clearInterval(interval);
   }, [setUserLocation]);

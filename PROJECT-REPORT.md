@@ -262,7 +262,33 @@ The Express.js backend implements RESTful API design with JWT-based authenticati
 
 ### 7.3 Key Features Implementation
 
-## Geolocation functionality uses browser GPS API with Turf.js for proximity calculations within 100 meters of cultural sites. The gamification system calculates points based on site visits with category multipliers and streak bonuses. Admin tools provide GeoJSON import capabilities for bulk data management and real-time analytics for user activity monitoring.
+Geolocation functionality uses browser GPS API with Turf.js for proximity calculations within 100 meters of cultural sites. The gamification system calculates points based on site visits with category multipliers and streak bonuses. Admin tools provide GeoJSON import capabilities for bulk data management and real-time analytics for user activity monitoring.
+
+### 7.4 API Documentation
+
+The backend exposes RESTful APIs organized into logical endpoint groups:
+
+**Core API Endpoints:**
+
+- **Authentication** (`/api/auth`) - User registration, login, logout, profile management
+- **Cultural Sites** (`/api/culturalsites`) - Site discovery, filtering, GeoJSON import/export
+- **Districts** (`/api/districts`) - Geographic boundary management and site assignment
+- **User Visits** (`/api/visits`) - Check-in system and visit history tracking
+- **Progress** (`/api/progress`) - User statistics, leaderboards, and achievement tracking
+- **Favorites** (`/api/favorites`) - Personal site bookmarking functionality
+
+**API Features:**
+
+- JWT-based authentication with HTTP-only cookies
+- Standardized JSON responses with proper HTTP status codes
+- Input validation and error handling middleware
+- Geospatial query support for location-based operations
+- Role-based access control for admin endpoints
+
+**Complete API Documentation:**  
+📚 [Postman Collection](link-to-postman-collection) - Interactive API documentation with example requests and responses
+
+---
 
 ## 8. Features and Functionality
 

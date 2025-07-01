@@ -419,12 +419,20 @@ const Landing: React.FC = () => {
                                 Museums & Landmarks
                             </Typography>
                         </Box>
-                        <Box sx={{ textAlign: "center", flex: 1, minWidth: 0 }}>
+                        <Box sx={{ textAlign: "center", flex: 1, minWidth: 0, mb: { xs: 1.5, sm: 0 } }}>
                             <Typography variant="subtitle1" fontWeight={600} color="primary.main" sx={{ fontSize: { xs: "0.95rem", sm: "0.98rem" } }}>
                                 🏆 Achievement System
                             </Typography>
                             <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: "0.78rem", sm: "0.8rem" } }}>
                                 Collect Unique Badges
+                            </Typography>
+                        </Box>
+                        <Box sx={{ textAlign: "center", flex: 1, minWidth: 0 }}>
+                            <Typography variant="subtitle1" fontWeight={600} color="primary.main" sx={{ fontSize: { xs: "0.95rem", sm: "0.98rem" } }}>
+                                ⭐ Save Favorites
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: "0.78rem", sm: "0.8rem" } }}>
+                                Your Favorite Sites
                             </Typography>
                         </Box>
                     </Stack>
