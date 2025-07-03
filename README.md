@@ -161,7 +161,18 @@ mern-auth-app/
 
 #### Development Mode
 
-1. **Start the server (from project root):**
+1. **Set up environment variables:**
+
+   Before starting the server, create a `.env` file inside the `server` directory with the following content:
+
+   ```env
+   NODE_ENV=development
+   PORT=5000
+   MONGO_URI=mongodb+srv://usmankhan87015:bWG5azxauITOIHMq@cluster0.vx1lj2o.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
+   JWT_SECRET=abc123
+   ```
+
+2. **Start the server (from project root):**
 
    ```bash
    cd server
@@ -170,7 +181,7 @@ mern-auth-app/
 
    Server will run on `http://localhost:5000`
 
-2. **Start the client (in a new terminal):**
+3. **Start the client (in a new terminal):**
    ```bash
    cd client
    npm run dev
