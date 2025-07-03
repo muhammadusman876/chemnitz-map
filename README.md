@@ -104,8 +104,6 @@ mern-auth-app/
 │   ├── 📁 utils/                # Server utility functions
 │   ├── 📄 package.json          # Backend dependencies
 │   └── 📄 server.js             # Server entry point
-├── 📄 API-DOCUMENTATION.md      # Comprehensive API docs
-├── 📄 PROJECT-REPORT.md         # Detailed project report
 └── 📄 README.md                 # This file
 ```
 
@@ -138,23 +136,6 @@ mern-auth-app/
    ```bash
    cd ../client
    npm install
-   ```
-
-4. **Set up environment variables:**
-
-   Create a `.env` file in the `server` directory with the following variables:
-
-   ```env
-   # Database
-   MONGODB_URI=mongodb://localhost:27017/cultural-sites-explorer
-
-   # Authentication
-   JWT_SECRET=your-super-secret-jwt-key-here
-
-   # Server Configuration
-   PORT=5000
-   NODE_ENV=development
-
    ```
 
 ### 🚀 Running the Application
